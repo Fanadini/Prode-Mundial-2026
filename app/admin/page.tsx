@@ -16,23 +16,27 @@ export default function AdminPage() {
 
   useEffect(() => {
     const load = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/login'); return }
-      const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', user.id).single()
-      if (!profile?.is_admin) { router.push('/'); return }
-      const { data } = await supabase
-        .from('matches')
-        .select('*, home_team:teams!matches_home_team_id_fkey(*), away_team:teams!matches_away_team_id_fkey(*)')
-        .order('id')
-      setMatches((data as MatchWithTeams[]) ?? [])
-      const map: Record<number, { home: string; away: string }> = {}
-      for (const m of (data as MatchWithTeams[]) ?? []) {
-        map[m.id] = {
-          home: m.home_score !== null ? String(m.home_score) : '',
-          away: m.away_score !== null ? String(m.away_score) : '',
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) { router.push('/login'); return }
+        const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', user.id).single()
+        if (!profile?.is_admin) { router.push('/'); return }
+        const { data } = await supabase
+          .from('matches')
+          .select('*, home_team:teams!matches_home_team_id_fkey(*), away_team:teams!matches_away_team_id_fkey(*)')
+          .order('id')
+        setMatches((data as MatchWithTeams[]) ?? [])
+        const map: Record<number, { home: string; away: string }> = {}
+        for (const m of (data as MatchWithTeams[]) ?? []) {
+          map[m.id] = {
+            home: m.home_score !== null ? String(m.home_score) : '',
+            away: m.away_score !== null ? String(m.away_score) : '',
+          }
         }
+        setResults(map)
+      } catch {
+        router.push('/login')
       }
-      setResults(map)
     }
     load()
   }, [])

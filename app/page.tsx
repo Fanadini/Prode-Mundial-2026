@@ -15,14 +15,18 @@ export default function HomePage() {
 
   useEffect(() => {
     const load = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/login'); return }
-      setUserId(user.id)
-      const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', user.id).single()
-      setIsAdmin(profile?.is_admin ?? false)
-      const { data } = await supabase.from('leaderboard').select('*')
-      setLeaderboard((data as LeaderboardEntry[]) ?? [])
-      setLoading(false)
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) { router.push('/login'); return }
+        setUserId(user.id)
+        const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', user.id).single()
+        setIsAdmin(profile?.is_admin ?? false)
+        const { data } = await supabase.from('leaderboard').select('*')
+        setLeaderboard((data as LeaderboardEntry[]) ?? [])
+        setLoading(false)
+      } catch {
+        router.push('/login')
+      }
     }
     load()
   }, [])

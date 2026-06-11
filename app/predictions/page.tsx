@@ -21,32 +21,36 @@ export default function PredictionsPage() {
 
   useEffect(() => {
     const load = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/login'); return }
-      setUserId(user.id)
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) { router.push('/login'); return }
+        setUserId(user.id)
 
-      const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', user.id).single()
-      setIsAdmin(profile?.is_admin ?? false)
+        const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', user.id).single()
+        setIsAdmin(profile?.is_admin ?? false)
 
-      const { data: matchData } = await supabase
-        .from('matches')
-        .select('*, home_team:teams!matches_home_team_id_fkey(*), away_team:teams!matches_away_team_id_fkey(*)')
-        .eq('stage', 'group')
-        .order('id')
+        const { data: matchData } = await supabase
+          .from('matches')
+          .select('*, home_team:teams!matches_home_team_id_fkey(*), away_team:teams!matches_away_team_id_fkey(*)')
+          .eq('stage', 'group')
+          .order('id')
 
-      setMatches((matchData as MatchWithTeams[]) ?? [])
+        setMatches((matchData as MatchWithTeams[]) ?? [])
 
-      const { data: predData } = await supabase
-        .from('predictions').select('*').eq('user_id', user.id)
+        const { data: predData } = await supabase
+          .from('predictions').select('*').eq('user_id', user.id)
 
-      const predMap: Record<number, { home: string; away: string }> = {}
-      const locked = new Set<number>()
-      for (const p of (predData as Prediction[]) ?? []) {
-        predMap[p.match_id] = { home: String(p.home_score), away: String(p.away_score) }
-        locked.add(p.match_id)
+        const predMap: Record<number, { home: string; away: string }> = {}
+        const locked = new Set<number>()
+        for (const p of (predData as Prediction[]) ?? []) {
+          predMap[p.match_id] = { home: String(p.home_score), away: String(p.away_score) }
+          locked.add(p.match_id)
+        }
+        setPredictions(predMap)
+        setSavedIds(locked)
+      } catch {
+        router.push('/login')
       }
-      setPredictions(predMap)
-      setSavedIds(locked)
     }
     load()
   }, [])
