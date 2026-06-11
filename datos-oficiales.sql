@@ -1,60 +1,12 @@
 -- ============================================
--- PRODE MUNDIAL 2026 — Schema completo
--- Ejecutar en Supabase → SQL Editor → New query
+-- DATOS OFICIALES MUNDIAL 2026 — sorteo real y fixture completo
+-- Ejecutar en Supabase → SQL Editor → New query → Run
+-- ⚠️ ATENCIÓN: borra los pronósticos ya cargados (los grupos cambiaron)
+-- Horarios guardados en hora del Este de EE.UU. (ET); la app los muestra
+-- en la zona horaria de cada usuario.
 -- ============================================
 
--- Profiles (se crea automáticamente al registrarse)
-create table profiles (
-  id uuid references auth.users on delete cascade primary key,
-  display_name text not null,
-  is_admin boolean default false,
-  created_at timestamptz default now()
-);
-
--- Teams
-create table teams (
-  id serial primary key,
-  name text not null,
-  flag text not null,
-  group_name text not null
-);
-
--- Matches
-create table matches (
-  id serial primary key,
-  home_team_id int references teams(id),
-  away_team_id int references teams(id),
-  stage text not null default 'group', -- group | round_of_32 | round_of_16 | quarter | semi | final
-  match_date timestamptz,
-  home_score int,
-  away_score int,
-  is_finished boolean default false
-);
-
--- Predictions
-create table predictions (
-  id serial primary key,
-  user_id uuid references profiles(id) on delete cascade,
-  match_id int references matches(id) on delete cascade,
-  home_score int not null,
-  away_score int not null,
-  points int default 0,
-  created_at timestamptz default now(),
-  unique(user_id, match_id)
-);
-
--- Special predictions (campeón + goleador)
-create table special_predictions (
-  id serial primary key,
-  user_id uuid references profiles(id) on delete cascade unique,
-  champion_team_id int references teams(id),
-  top_scorer text,
-  champion_points int default 0,
-  scorer_points int default 0,
-  updated_at timestamptz default now()
-);
-
--- Auto-crear profile al registrarse
+-- 1) Trigger de registro: usa el nombre elegido al crear la cuenta
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -72,56 +24,23 @@ begin
 end;
 $$;
 
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute function handle_new_user();
-
--- Vista de tabla de posiciones
-create or replace view leaderboard as
-select
-  p.id,
-  p.display_name,
-  coalesce(sum(pr.points), 0) +
-    coalesce(sp.champion_points, 0) +
-    coalesce(sp.scorer_points, 0) as total_points,
-  count(case when pr.points >= 3 then 1 end) as exact_scores
-from profiles p
-left join predictions pr on pr.user_id = p.id
-left join special_predictions sp on sp.user_id = p.id
-group by p.id, p.display_name, sp.champion_points, sp.scorer_points
-order by total_points desc;
-
--- RLS
-alter table profiles enable row level security;
-alter table predictions enable row level security;
-alter table special_predictions enable row level security;
-alter table matches enable row level security;
-alter table teams enable row level security;
-
--- Policies
-create policy "Public profiles" on profiles for select using (true);
-create policy "Own profile" on profiles for update using (auth.uid() = id);
-
-create policy "Public teams" on teams for select using (true);
-create policy "Public matches" on matches for select using (true);
-create policy "Admin update matches" on matches for update
-  using (exists (select 1 from profiles where id = auth.uid() and is_admin = true));
+-- 2) El admin puede crear partidos (cruces de eliminatorias)
+drop policy if exists "Admin insert matches" on matches;
 create policy "Admin insert matches" on matches for insert
   with check (exists (select 1 from profiles where id = auth.uid() and is_admin = true));
 
--- Todos los usuarios autenticados pueden ver todas las predicciones (necesario para el leaderboard)
-create policy "Authenticated see all predictions" on predictions for select using (auth.uid() is not null);
-create policy "Own predictions insert" on predictions for insert with check (auth.uid() = user_id);
--- Los usuarios NO pueden modificar un pronóstico ya guardado: solo el admin
-create policy "Admin update predictions" on predictions for update
-  using (exists (select 1 from profiles where id = auth.uid() and is_admin = true));
+-- 3) Tu usuario: nombre y admin
+update profiles
+set display_name = 'Facu', is_admin = true
+where id = (select id from auth.users where email = 'fanadini@gmail.com');
 
-create policy "Own special select" on special_predictions for select using (auth.uid() = user_id);
-create policy "Own special insert" on special_predictions for insert with check (auth.uid() = user_id);
-create policy "Own special update" on special_predictions for update using (auth.uid() = user_id);
+-- 4) Limpieza de datos viejos
+delete from predictions;
+delete from special_predictions;
+delete from matches;
+delete from teams;
 
--- ============================================
--- DATOS OFICIALES: 48 equipos (sorteo del 5/12/2025)
+-- 5) Los 48 equipos oficiales (sorteo del 5/12/2025)
 insert into teams (id, name, flag, group_name) values
 (1, 'México', '🇲🇽', 'A'),
 (2, 'Sudáfrica', '🇿🇦', 'A'),
@@ -173,7 +92,7 @@ insert into teams (id, name, flag, group_name) values
 (48, 'Panamá', '🇵🇦', 'L');
 select setval('teams_id_seq', 48);
 
--- DATOS OFICIALES: 72 partidos de fase de grupos (hora ET, UTC-4)
+-- 6) Los 72 partidos oficiales de fase de grupos (hora ET, UTC-4)
 insert into matches (home_team_id, away_team_id, stage, match_date) values
 (1, 2, 'group', '2026-06-11 15:00:00-04'),
 (3, 4, 'group', '2026-06-11 22:00:00-04'),
@@ -249,6 +168,6 @@ insert into matches (home_team_id, away_team_id, stage, match_date) values
 (40, 37, 'group', '2026-06-27 22:00:00-04');
 select setval('matches_id_seq', (select max(id) from matches));
 
--- Resultado del partido inaugural (ya jugado): México 2 - 0 Sudáfrica
+-- 7) Resultado del partido inaugural (ya jugado): México 2 - 0 Sudáfrica
 update matches set home_score = 2, away_score = 0, is_finished = true
 where home_team_id = 1 and away_team_id = 2 and stage = 'group';
