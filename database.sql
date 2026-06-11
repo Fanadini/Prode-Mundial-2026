@@ -99,12 +99,11 @@ create policy "Public matches" on matches for select using (true);
 create policy "Admin update matches" on matches for update
   using (exists (select 1 from profiles where id = auth.uid() and is_admin = true));
 
-create policy "Own predictions select" on predictions for select using (auth.uid() = user_id);
+-- Todos los usuarios autenticados pueden ver todas las predicciones (necesario para el leaderboard)
+create policy "Authenticated see all predictions" on predictions for select using (auth.uid() is not null);
 create policy "Own predictions insert" on predictions for insert with check (auth.uid() = user_id);
 -- Los usuarios NO pueden modificar un pronóstico ya guardado: solo el admin
 create policy "Admin update predictions" on predictions for update
-  using (exists (select 1 from profiles where id = auth.uid() and is_admin = true));
-create policy "Admin select predictions" on predictions for select
   using (exists (select 1 from profiles where id = auth.uid() and is_admin = true));
 
 create policy "Own special select" on special_predictions for select using (auth.uid() = user_id);

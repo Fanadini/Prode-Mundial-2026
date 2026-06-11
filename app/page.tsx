@@ -1,22 +1,41 @@
-import { createClient } from '@/lib/supabase-server'
+'use client'
+import { useEffect, useState } from 'react'
+import { createClient } from '@/lib/supabase-client'
 import Nav from '@/components/Nav'
-import { redirect } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import type { LeaderboardEntry } from '@/lib/types'
 
-export default async function HomePage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+export default function HomePage() {
+  const supabase = createClient()
+  const router = useRouter()
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
+  const [userId, setUserId] = useState<string | null>(null)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [loading, setLoading] = useState(true)
 
-  const { data: profile } = await supabase
-    .from('profiles').select('*').eq('id', user.id).single()
+  useEffect(() => {
+    const load = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { router.push('/login'); return }
+      setUserId(user.id)
+      const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', user.id).single()
+      setIsAdmin(profile?.is_admin ?? false)
+      const { data } = await supabase.from('leaderboard').select('*')
+      setLeaderboard((data as LeaderboardEntry[]) ?? [])
+      setLoading(false)
+    }
+    load()
+  }, [])
 
-  const { data: leaderboard } = await supabase
-    .from('leaderboard').select('*')
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center">
+      <p className="text-gray-400">Cargando...</p>
+    </div>
+  )
 
   return (
     <div>
-      <Nav isAdmin={profile?.is_admin} />
+      <Nav isAdmin={isAdmin} />
       <main className="max-w-2xl mx-auto p-6">
         <h1 className="text-2xl font-bold text-gray-800 mb-2">Tabla de posiciones</h1>
         <p className="text-gray-500 text-sm mb-6">Mundial 2026 — USA / México / Canadá</p>
@@ -27,11 +46,11 @@ export default async function HomePage() {
             <span className="col-span-2">Jugador</span>
             <span className="text-right">Puntos</span>
           </div>
-          {(leaderboard as LeaderboardEntry[])?.map((entry, i) => (
+          {leaderboard.map((entry, i) => (
             <div
               key={entry.id}
               className={`grid grid-cols-4 items-center px-4 py-3 border-b last:border-0 ${
-                entry.id === user.id ? 'bg-green-50' : ''
+                entry.id === userId ? 'bg-green-50' : ''
               }`}
             >
               <span className="text-gray-400 text-sm font-mono">{i + 1}</span>
@@ -42,7 +61,7 @@ export default async function HomePage() {
               <p className="text-right font-bold text-green-700">{entry.total_points} pts</p>
             </div>
           ))}
-          {(!leaderboard || leaderboard.length === 0) && (
+          {leaderboard.length === 0 && (
             <p className="text-center text-gray-400 py-8 text-sm">
               Nadie cargó pronósticos todavía.
             </p>

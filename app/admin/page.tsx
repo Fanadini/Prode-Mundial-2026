@@ -2,18 +2,24 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase-client'
 import Nav from '@/components/Nav'
+import { useRouter } from 'next/navigation'
 import type { Match, Team } from '@/lib/types'
 
 type MatchWithTeams = Match & { home_team: Team; away_team: Team }
 
 export default function AdminPage() {
   const supabase = createClient()
+  const router = useRouter()
   const [matches, setMatches] = useState<MatchWithTeams[]>([])
   const [results, setResults] = useState<Record<number, { home: string; away: string }>>({})
   const [saving, setSaving] = useState<number | null>(null)
 
   useEffect(() => {
     const load = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { router.push('/login'); return }
+      const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', user.id).single()
+      if (!profile?.is_admin) { router.push('/'); return }
       const { data } = await supabase
         .from('matches')
         .select('*, home_team:teams!matches_home_team_id_fkey(*), away_team:teams!matches_away_team_id_fkey(*)')

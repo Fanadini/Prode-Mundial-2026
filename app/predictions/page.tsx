@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase-client'
 import Nav from '@/components/Nav'
+import { useRouter } from 'next/navigation'
 import type { Match, Prediction, Team } from '@/lib/types'
 
 type MatchWithTeams = Match & { home_team: Team; away_team: Team }
@@ -16,11 +17,12 @@ export default function PredictionsPage() {
   const [saved, setSaved] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const [selectedGroup, setSelectedGroup] = useState('A')
+  const router = useRouter()
 
   useEffect(() => {
     const load = async () => {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      if (!user) { router.push('/login'); return }
       setUserId(user.id)
 
       const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', user.id).single()
