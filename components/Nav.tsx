@@ -20,6 +20,7 @@ export default function Nav({ isAdmin }: { isAdmin?: boolean }) {
         <Link href="/predictions" className="hover:underline">Pronósticos</Link>
         <Link href="/predictions/especiales" className="hover:underline">Especiales</Link>
         <Link href="/" className="hover:underline">Tabla</Link>
+        <Link href="/profile" className="hover:underline">Mi perfil</Link>
         {isAdmin && <Link href="/admin" className="hover:underline font-semibold">Admin</Link>}
         <button onClick={logout} className="hover:underline text-green-200">Salir</button>
       </div>
