@@ -17,11 +17,11 @@ export default function RegisterPage() {
     e.preventDefault()
     setLoading(true)
     setError('')
-    const { data, error: signUpError } = await supabase.auth.signUp({ email, password })
+    const { error: signUpError } = await supabase.auth.signUp({
+      email, password,
+      options: { data: { display_name: name } },
+    })
     if (signUpError) { setError(signUpError.message); setLoading(false); return }
-    if (data.user) {
-      await supabase.from('profiles').update({ display_name: name }).eq('id', data.user.id)
-    }
     router.push('/')
     router.refresh()
   }

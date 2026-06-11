@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase-client'
 import Nav from '@/components/Nav'
 import { useRouter } from 'next/navigation'
+import { STAGES, formatMatchDate } from '@/lib/stages'
 import type { Match, Prediction, Team } from '@/lib/types'
 
 type MatchWithTeams = Match & { home_team: Team; away_team: Team }
@@ -16,6 +17,7 @@ export default function PredictionsPage() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [selectedStage, setSelectedStage] = useState('group')
   const [selectedGroup, setSelectedGroup] = useState('A')
   const router = useRouter()
 
@@ -32,7 +34,7 @@ export default function PredictionsPage() {
         const { data: matchData } = await supabase
           .from('matches')
           .select('*, home_team:teams!matches_home_team_id_fkey(*), away_team:teams!matches_away_team_id_fkey(*)')
-          .eq('stage', 'group')
+          .order('match_date', { ascending: true, nullsFirst: false })
           .order('id')
 
         setMatches((matchData as MatchWithTeams[]) ?? [])
@@ -55,8 +57,11 @@ export default function PredictionsPage() {
     load()
   }, [])
 
-  const groups = [...new Set(matches.map(m => m.home_team?.group_name).filter(Boolean))]
-  const filteredMatches = matches.filter(m => m.home_team?.group_name === selectedGroup)
+  const groups = [...new Set(matches.filter(m => m.stage === 'group').map(m => m.home_team?.group_name).filter(Boolean))].sort()
+  const stageMatches = matches.filter(m => m.stage === selectedStage)
+  const filteredMatches = selectedStage === 'group'
+    ? stageMatches.filter(m => m.home_team?.group_name === selectedGroup)
+    : stageMatches
 
   const save = async () => {
     if (!userId) return
@@ -86,30 +91,58 @@ export default function PredictionsPage() {
     <div>
       <Nav isAdmin={isAdmin} />
       <main className="max-w-2xl mx-auto p-6">
-        <h1 className="text-xl font-bold text-gray-800 mb-4">Pronósticos — Fase de grupos</h1>
+        <h1 className="text-xl font-bold text-gray-800 mb-4">Pronósticos</h1>
 
-        <div className="flex flex-wrap gap-2 mb-6">
-          {groups.map(g => (
+        <div className="flex flex-wrap gap-2 mb-4">
+          {STAGES.map(s => (
             <button
-              key={g}
-              onClick={() => setSelectedGroup(g!)}
+              key={s.key}
+              onClick={() => setSelectedStage(s.key)}
               className={`px-3 py-1 rounded-full text-sm font-medium ${
-                selectedGroup === g
-                  ? 'bg-green-600 text-white'
+                selectedStage === s.key
+                  ? 'bg-green-700 text-white'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
-              Grupo {g}
+              {s.label}
             </button>
           ))}
         </div>
+
+        {selectedStage === 'group' && (
+          <div className="flex flex-wrap gap-2 mb-6">
+            {groups.map(g => (
+              <button
+                key={g}
+                onClick={() => setSelectedGroup(g!)}
+                className={`px-3 py-1 rounded-full text-sm font-medium ${
+                  selectedGroup === g
+                    ? 'bg-green-600 text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                Grupo {g}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {filteredMatches.length === 0 && selectedStage !== 'group' && (
+          <div className="bg-white rounded-xl p-8 shadow-sm text-center text-sm text-gray-400">
+            Los cruces de esta fase se cargan cuando se definan los clasificados.
+          </div>
+        )}
 
         <div className="space-y-3">
           {filteredMatches.map(match => {
             const pred = predictions[match.id] ?? { home: '', away: '' }
             const locked = match.is_finished || savedIds.has(match.id)
+            const dateLabel = formatMatchDate(match.match_date)
             return (
               <div key={match.id} className="bg-white rounded-xl p-4 shadow-sm">
+                {dateLabel && (
+                  <p className="text-center text-xs text-gray-400 mb-2">📅 {dateLabel}</p>
+                )}
                 <div className="flex items-center gap-3">
                   <div className="flex-1 text-right">
                     <span className="text-lg">{match.home_team?.flag}</span>
@@ -149,13 +182,15 @@ export default function PredictionsPage() {
           })}
         </div>
 
-        <button
-          onClick={save}
-          disabled={saving}
-          className="mt-6 w-full bg-green-600 text-white py-3 rounded-xl font-medium hover:bg-green-700 disabled:opacity-50"
-        >
-          {saved ? '✓ Guardado!' : saving ? 'Guardando...' : 'Guardar pronósticos'}
-        </button>
+        {filteredMatches.length > 0 && (
+          <button
+            onClick={save}
+            disabled={saving}
+            className="mt-6 w-full bg-green-600 text-white py-3 rounded-xl font-medium hover:bg-green-700 disabled:opacity-50"
+          >
+            {saved ? '✓ Guardado!' : saving ? 'Guardando...' : 'Guardar pronósticos'}
+          </button>
+        )}
       </main>
     </div>
   )

@@ -63,7 +63,10 @@ set search_path = public
 as $$
 begin
   insert into public.profiles (id, display_name)
-  values (new.id, split_part(new.email, '@', 1))
+  values (
+    new.id,
+    coalesce(nullif(new.raw_user_meta_data->>'display_name', ''), split_part(new.email, '@', 1))
+  )
   on conflict (id) do nothing;
   return new;
 end;
@@ -103,6 +106,8 @@ create policy "Public teams" on teams for select using (true);
 create policy "Public matches" on matches for select using (true);
 create policy "Admin update matches" on matches for update
   using (exists (select 1 from profiles where id = auth.uid() and is_admin = true));
+create policy "Admin insert matches" on matches for insert
+  with check (exists (select 1 from profiles where id = auth.uid() and is_admin = true));
 
 -- Todos los usuarios autenticados pueden ver todas las predicciones (necesario para el leaderboard)
 create policy "Authenticated see all predictions" on predictions for select using (auth.uid() is not null);
