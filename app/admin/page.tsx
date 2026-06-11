@@ -17,9 +17,9 @@ export default function AdminPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) { router.push('/login'); return }
-        const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', user.id).single()
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session) { router.push('/login'); return }
+        const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', session.user.id).single()
         if (!profile?.is_admin) { router.push('/'); return }
         const { data } = await supabase
           .from('matches')

@@ -19,18 +19,18 @@ export default function EspecialesPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) { router.push('/login'); return }
-        setUserId(user.id)
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session) { router.push('/login'); return }
+        setUserId(session.user.id)
 
-        const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', user.id).single()
+        const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', session.user.id).single()
         setIsAdmin(profile?.is_admin ?? false)
 
         const { data: teamsData } = await supabase.from('teams').select('*').order('name')
         setTeams((teamsData as Team[]) ?? [])
 
         const { data: special } = await supabase
-          .from('special_predictions').select('*').eq('user_id', user.id).single()
+          .from('special_predictions').select('*').eq('user_id', session.user.id).single()
         if (special) {
           setChampionId(String(special.champion_team_id ?? ''))
           setTopScorer(special.top_scorer ?? '')

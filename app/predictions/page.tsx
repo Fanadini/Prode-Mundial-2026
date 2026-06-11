@@ -22,11 +22,11 @@ export default function PredictionsPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) { router.push('/login'); return }
-        setUserId(user.id)
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session) { router.push('/login'); return }
+        setUserId(session.user.id)
 
-        const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', user.id).single()
+        const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', session.user.id).single()
         setIsAdmin(profile?.is_admin ?? false)
 
         const { data: matchData } = await supabase
@@ -38,7 +38,7 @@ export default function PredictionsPage() {
         setMatches((matchData as MatchWithTeams[]) ?? [])
 
         const { data: predData } = await supabase
-          .from('predictions').select('*').eq('user_id', user.id)
+          .from('predictions').select('*').eq('user_id', session.user.id)
 
         const predMap: Record<number, { home: string; away: string }> = {}
         const locked = new Set<number>()
