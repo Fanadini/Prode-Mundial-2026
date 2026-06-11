@@ -2,7 +2,7 @@
 const nextConfig = {
   output: 'export',
   trailingSlash: true,
-  basePath: '/prode-mundial-2026',
+  basePath: '/Prode-Mundial-2026',
   images: { unoptimized: true },
 }
 export default nextConfig
