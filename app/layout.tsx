@@ -13,8 +13,8 @@ export const metadata: Metadata = {
   manifest: '/Prode-Mundial-2026/manifest.json',
   appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'Prode 2026' },
   icons: {
-    icon: '/Prode-Mundial-2026/icon-192.png',
-    apple: '/Prode-Mundial-2026/apple-touch-icon.png',
+    icon: '/Prode-Mundial-2026/icon-192-v2.png',
+    apple: '/Prode-Mundial-2026/apple-touch-icon-v2.png',
   },
 }
 
