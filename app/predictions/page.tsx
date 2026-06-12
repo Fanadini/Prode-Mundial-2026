@@ -394,7 +394,7 @@ export default function PredictionsPage() {
 
         {/* Calendar view */}
         {viewMode === 'calendar' && (
-          <div>
+          <div className="pb-24">
             {pastMatchCount > 0 && (
               showPast ? (
                 <div className="mb-1">
@@ -435,16 +435,26 @@ export default function PredictionsPage() {
           </div>
         )}
 
-        {hasMatches && (
-          <>
-            {saveError && (
-              <p className="mt-4 text-center text-xs text-red-400">{saveError}</p>
-            )}
+        {/* Save button — inline for groups, fixed-bottom for calendar */}
+        {viewMode === 'groups' && groupFilteredMatches.length > 0 && (
+          <div className="mt-3">
+            {saveError && <p className="mb-2 text-center text-xs text-red-400">{saveError}</p>}
             <button onClick={save} disabled={saving}
-              className="mt-3 w-full bg-gold-500 hover:bg-gold-400 text-black font-bold py-3.5 rounded-2xl transition-colors disabled:opacity-50">
+              className="w-full bg-gold-500 hover:bg-gold-400 text-black font-bold py-3.5 rounded-2xl transition-colors disabled:opacity-50">
               {saved ? '✓ Guardado!' : saving ? 'Guardando...' : 'Guardar pronósticos'}
             </button>
-          </>
+          </div>
+        )}
+        {viewMode === 'calendar' && matches.length > 0 && (
+          <div className="fixed bottom-0 inset-x-0 z-20 p-4 bg-pitch-950/95 backdrop-blur-sm border-t border-pitch-800">
+            <div className="max-w-2xl mx-auto">
+              {saveError && <p className="mb-2 text-center text-xs text-red-400">{saveError}</p>}
+              <button onClick={save} disabled={saving}
+                className="w-full bg-gold-500 hover:bg-gold-400 text-black font-bold py-3.5 rounded-2xl transition-colors disabled:opacity-50">
+                {saved ? '✓ Guardado!' : saving ? 'Guardando...' : 'Guardar pronósticos'}
+              </button>
+            </div>
+          </div>
         )}
       </main>
     </div>
