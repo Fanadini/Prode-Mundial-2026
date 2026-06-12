@@ -28,6 +28,7 @@ export default function AdminPage() {
 
   // Users state
   const [users, setUsers] = useState<Profile[]>([])
+  const [predCount, setPredCount] = useState<Record<string, number>>({})
   const [editName, setEditName] = useState<Record<string, string>>({})
   const [savingUser, setSavingUser] = useState<string | null>(null)
   const [myId, setMyId] = useState<string>('')
@@ -41,16 +42,23 @@ export default function AdminPage() {
         const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', session.user.id).single()
         if (!profile?.is_admin) { router.push('/'); return }
 
-        const [{ data: teamsData }, { data: matchData }, { data: usersData }] = await Promise.all([
+        const [{ data: teamsData }, { data: matchData }, { data: usersData }, { data: predsData }] = await Promise.all([
           supabase.from('teams').select('*').order('name'),
           supabase.from('matches').select(MATCH_SELECT)
             .order('match_date', { ascending: true, nullsFirst: false }).order('id'),
           supabase.from('profiles').select('*').order('display_name'),
+          supabase.from('predictions').select('user_id'),
         ])
 
         setTeams((teamsData as Team[]) ?? [])
         setMatches((matchData as MatchWithTeams[]) ?? [])
         setUsers((usersData as Profile[]) ?? [])
+
+        const counts: Record<string, number> = {}
+        for (const p of (predsData ?? []) as { user_id: string }[]) {
+          counts[p.user_id] = (counts[p.user_id] ?? 0) + 1
+        }
+        setPredCount(counts)
 
         const map: Record<number, { home: string; away: string }> = {}
         for (const m of (matchData as MatchWithTeams[]) ?? []) {
@@ -198,9 +206,9 @@ export default function AdminPage() {
                         {match.match_date && (
                           <p className="text-center text-xs text-zinc-600 mb-2">{formatMatchDate(match.match_date)}</p>
                         )}
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 mb-3">
                           <div className="flex-1 text-right min-w-0">
-                            <span className="text-sm font-medium text-white truncate">{match.home_team?.flag} {match.home_team?.name}</span>
+                            <span className="text-sm font-medium text-white">{match.home_team?.flag} {match.home_team?.name}</span>
                           </div>
                           <input type="number" min="0" max="20" value={r.home}
                             onChange={e => setResults(rs => ({ ...rs, [match.id]: { ...r, home: e.target.value } }))}
@@ -212,17 +220,17 @@ export default function AdminPage() {
                             className="w-11 h-10 text-center border border-pitch-600 bg-pitch-900 rounded-lg text-white font-bold text-sm focus:outline-none focus:border-gold-500 flex-none"
                           />
                           <div className="flex-1 min-w-0">
-                            <span className="text-sm font-medium text-white truncate">{match.away_team?.name} {match.away_team?.flag}</span>
+                            <span className="text-sm font-medium text-white">{match.away_team?.name} {match.away_team?.flag}</span>
                           </div>
-                          <button onClick={() => saveResult(match.id)} disabled={saving === match.id}
-                            className={`text-xs px-3 py-1.5 rounded-full font-semibold transition-colors flex-none ${
-                              match.is_finished
-                                ? 'bg-emerald-900/60 text-emerald-400'
-                                : 'bg-gold-500/20 text-gold-400 hover:bg-gold-500/30 border border-gold-600/40'
-                            }`}>
-                            {saving === match.id ? '...' : match.is_finished ? '✓' : 'Guardar'}
-                          </button>
                         </div>
+                        <button onClick={() => saveResult(match.id)} disabled={saving === match.id}
+                          className={`w-full py-2 rounded-xl text-sm font-semibold transition-colors ${
+                            match.is_finished
+                              ? 'bg-emerald-900/40 text-emerald-400 border border-emerald-900/50'
+                              : 'bg-gold-500 hover:bg-gold-400 text-black disabled:opacity-50'
+                          }`}>
+                          {saving === match.id ? 'Guardando...' : match.is_finished ? '✓ Guardado' : 'Guardar resultado'}
+                        </button>
                       </div>
                     )
                   })}
@@ -272,6 +280,14 @@ export default function AdminPage() {
                   >
                     {user.is_admin ? '⭐ Admin' : 'Usuario'}
                   </button>
+
+                  {(predCount[user.id] ?? 0) > 0 ? (
+                    <span className="text-xs text-emerald-500 font-medium">
+                      ✓ {predCount[user.id]} prono{predCount[user.id] === 1 ? '' : 's'}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-zinc-600">Sin pronósticos</span>
+                  )}
 
                   {user.id === myId && (
                     <span className="text-xs text-zinc-600">(vos)</span>
