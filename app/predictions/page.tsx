@@ -16,9 +16,9 @@ export default function PredictionsPage() {
   const [predictions, setPredictions] = useState<Record<number, PredEntry>>({})
   const [savedIds, setSavedIds] = useState<Set<number>>(new Set())
   const [userId, setUserId] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [saveError, setSaveError] = useState('')
+  const [savingMatch, setSavingMatch] = useState<number | null>(null)
+  const [savedMatch, setSavedMatch] = useState<number | null>(null)
+  const [saveError, setSaveError] = useState<Record<number, string>>({})
   const [isAdmin, setIsAdmin] = useState(false)
   const [selectedStage, setSelectedStage] = useState('group')
   const [selectedGroup, setSelectedGroup] = useState('A')
@@ -141,38 +141,26 @@ export default function PredictionsPage() {
   const allCollapsed = visibleGroups.length > 0 &&
     visibleGroups.every(g => !isDayExpanded(g.key, pastKeys.has(g.key)))
 
-  const save = async () => {
+  const saveMatch = async (matchId: number) => {
     if (!userId) return
-    setSaving(true)
-    setSaveError('')
-    const rows = Object.entries(predictions)
-      .filter(([matchId, v]) => {
-        if (v.home === '' || v.away === '') return false
-        const match = matches.find(m => m.id === Number(matchId))
-        return match && !isLocked(match)
-      })
-      .map(([matchId, v]) => ({
-        user_id: userId,
-        match_id: Number(matchId),
-        home_score: Number(v.home),
-        away_score: Number(v.away),
-      }))
-    if (rows.length === 0) {
-      setSaving(false)
-      setSaveError('No hay pronósticos nuevos para guardar.')
-      setTimeout(() => setSaveError(''), 3000)
-      return
-    }
-    const { error } = await supabase.from('predictions')
-      .upsert(rows, { onConflict: 'user_id,match_id' })
-    setSaving(false)
+    const v = predictions[matchId]
+    if (!v || v.home === '' || v.away === '') return
+    setSavingMatch(matchId)
+    setSaveError(e => ({ ...e, [matchId]: '' }))
+    const { error } = await supabase.from('predictions').upsert({
+      user_id: userId,
+      match_id: matchId,
+      home_score: Number(v.home),
+      away_score: Number(v.away),
+    }, { onConflict: 'user_id,match_id' })
+    setSavingMatch(null)
     if (error) {
-      setSaveError(`Error al guardar: ${error.message}`)
+      setSaveError(e => ({ ...e, [matchId]: error.message }))
       return
     }
-    setSavedIds(prev => new Set([...prev, ...rows.map(r => r.match_id)]))
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+    setSavedIds(prev => new Set([...prev, matchId]))
+    setSavedMatch(matchId)
+    setTimeout(() => setSavedMatch(m => m === matchId ? null : m), 2000)
   }
 
   const renderCard = (match: MatchWithTeams, calendarView = false) => {
@@ -286,11 +274,23 @@ export default function PredictionsPage() {
           <p className="text-center text-xs text-zinc-600 pb-3">
             🔒 Cerrado — menos de 1h para el partido
           </p>
-        ) : savedIds.has(match.id) ? (
-          <p className="text-center text-xs text-emerald-600 pb-3">
-            ✏️ Podés modificar hasta 1h antes
-          </p>
-        ) : null}
+        ) : (
+          <div className="px-3 pb-3">
+            {saveError[match.id] && (
+              <p className="text-xs text-red-400 text-center mb-1">{saveError[match.id]}</p>
+            )}
+            <button
+              onClick={() => saveMatch(match.id)}
+              disabled={savingMatch === match.id || pred.home === '' || pred.away === ''}
+              className={`w-full py-2 rounded-xl text-sm font-bold transition-colors disabled:opacity-40 ${
+                savedMatch === match.id
+                  ? 'bg-emerald-600 text-white'
+                  : 'bg-gold-500 hover:bg-gold-400 text-black'
+              }`}>
+              {savingMatch === match.id ? 'Guardando...' : savedMatch === match.id ? '✓ Guardado' : 'Guardar'}
+            </button>
+          </div>
+        )}
       </div>
     )
   }
@@ -323,7 +323,6 @@ export default function PredictionsPage() {
     )
   }
 
-  const hasMatches = viewMode === 'calendar' ? matches.length > 0 : groupFilteredMatches.length > 0
 
   return (
     <div className="bg-pitch-950 min-h-screen">
@@ -394,7 +393,7 @@ export default function PredictionsPage() {
 
         {/* Calendar view */}
         {viewMode === 'calendar' && (
-          <div className="pb-24">
+          <div>
             {pastMatchCount > 0 && (
               showPast ? (
                 <div className="mb-1">
@@ -435,27 +434,6 @@ export default function PredictionsPage() {
           </div>
         )}
 
-        {/* Save button — inline for groups, fixed-bottom for calendar */}
-        {viewMode === 'groups' && groupFilteredMatches.length > 0 && (
-          <div className="mt-3">
-            {saveError && <p className="mb-2 text-center text-xs text-red-400">{saveError}</p>}
-            <button onClick={save} disabled={saving}
-              className="w-full bg-gold-500 hover:bg-gold-400 text-black font-bold py-3.5 rounded-2xl transition-colors disabled:opacity-50">
-              {saved ? '✓ Guardado!' : saving ? 'Guardando...' : 'Guardar pronósticos'}
-            </button>
-          </div>
-        )}
-        {viewMode === 'calendar' && matches.length > 0 && (
-          <div className="fixed bottom-0 inset-x-0 z-20 p-4 bg-pitch-950/95 backdrop-blur-sm border-t border-pitch-800">
-            <div className="max-w-2xl mx-auto">
-              {saveError && <p className="mb-2 text-center text-xs text-red-400">{saveError}</p>}
-              <button onClick={save} disabled={saving}
-                className="w-full bg-gold-500 hover:bg-gold-400 text-black font-bold py-3.5 rounded-2xl transition-colors disabled:opacity-50">
-                {saved ? '✓ Guardado!' : saving ? 'Guardando...' : 'Guardar pronósticos'}
-              </button>
-            </div>
-          </div>
-        )}
       </main>
     </div>
   )
