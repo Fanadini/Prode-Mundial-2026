@@ -93,7 +93,7 @@ export default function PredictionsPage() {
         <h1 className="text-xl font-bold text-white mb-5">Pronósticos</h1>
 
         {/* Stage tabs */}
-        <div className="flex gap-2 overflow-x-auto pb-2 mb-4 scrollbar-hide">
+        <div className="flex gap-2 overflow-x-auto pb-2 mb-4 scrollbar-hide w-full">
           {STAGES.map(s => (
             <button key={s.key} onClick={() => setSelectedStage(s.key)}
               className={`flex-none px-4 py-1.5 rounded-full text-sm font-medium transition-colors whitespace-nowrap ${
@@ -108,7 +108,7 @@ export default function PredictionsPage() {
 
         {/* Group tabs */}
         {selectedStage === 'group' && (
-          <div className="flex gap-2 overflow-x-auto pb-3 mb-4 scrollbar-hide">
+          <div className="flex gap-2 overflow-x-auto pb-3 mb-4 scrollbar-hide w-full">
             {groups.map(g => (
               <button key={g} onClick={() => setSelectedGroup(g!)}
                 className={`flex-none px-3 py-1 rounded-full text-xs font-medium transition-colors ${

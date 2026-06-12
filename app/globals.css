@@ -3,6 +3,7 @@
 @tailwind utilities;
 
 @layer base {
+  html, body { overflow-x: hidden; max-width: 100%; }
   body { background-color: #080A0C; color: #ffffff; }
   input[type=number]::-webkit-inner-spin-button,
   input[type=number]::-webkit-outer-spin-button { opacity: 1; }
