@@ -5,17 +5,17 @@
   "start_url": "/Prode-Mundial-2026/",
   "scope": "/Prode-Mundial-2026/",
   "display": "standalone",
-  "background_color": "#15803d",
-  "theme_color": "#15803d",
+  "background_color": "#080A0C",
+  "theme_color": "#080A0C",
   "icons": [
     {
-      "src": "/Prode-Mundial-2026/icon-192.png",
+      "src": "/Prode-Mundial-2026/icon-192-v2.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/Prode-Mundial-2026/icon-512.png",
+      "src": "/Prode-Mundial-2026/icon-512-v2.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
