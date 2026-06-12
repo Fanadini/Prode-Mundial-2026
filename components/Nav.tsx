@@ -28,7 +28,11 @@ export default function Nav({ isAdmin }: { isAdmin?: boolean }) {
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 h-14">
         <Link href="/" className="flex items-center gap-2">
-          <span className="text-xl">🏆</span>
+          <img
+            src="/Prode-Mundial-2026/wc26-logo.jpg"
+            alt="FIFA World Cup 2026"
+            className="w-8 h-8 rounded-md object-cover"
+          />
           <span className="font-bold text-white tracking-tight">
             Prode <span className="text-gold-400">2026</span>
           </span>
