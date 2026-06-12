@@ -159,8 +159,8 @@ export default function PredictionsPage() {
       dayGroups.push({ key, label: formatCalendarDay(match.match_date), matches: [match] })
     }
   }
-  const pastDayGroups = dayGroups.filter(g => g.matches.every(m => isLocked(m)))
-  const futureDayGroups = dayGroups.filter(g => !g.matches.every(m => isLocked(m)))
+  const pastDayGroups = dayGroups.filter(g => g.matches.every(m => m.is_finished))
+  const futureDayGroups = dayGroups.filter(g => !g.matches.every(m => m.is_finished))
   const pastMatchCount = pastDayGroups.reduce((s, g) => s + g.matches.length, 0)
 
   const isDayExpanded = (key: string, isPast: boolean) =>
