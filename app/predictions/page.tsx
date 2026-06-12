@@ -18,6 +18,7 @@ export default function PredictionsPage() {
   const [userId, setUserId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [saveError, setSaveError] = useState('')
   const [isAdmin, setIsAdmin] = useState(false)
   const [selectedStage, setSelectedStage] = useState('group')
   const [selectedGroup, setSelectedGroup] = useState('A')
@@ -143,6 +144,7 @@ export default function PredictionsPage() {
   const save = async () => {
     if (!userId) return
     setSaving(true)
+    setSaveError('')
     const rows = Object.entries(predictions)
       .filter(([matchId, v]) => {
         if (v.home === '' || v.away === '') return false
@@ -155,12 +157,20 @@ export default function PredictionsPage() {
         home_score: Number(v.home),
         away_score: Number(v.away),
       }))
-    if (rows.length > 0) {
-      const { error } = await supabase.from('predictions')
-        .upsert(rows, { onConflict: 'user_id,match_id' })
-      if (!error) setSavedIds(prev => new Set([...prev, ...rows.map(r => r.match_id)]))
+    if (rows.length === 0) {
+      setSaving(false)
+      setSaveError('No hay pronósticos nuevos para guardar.')
+      setTimeout(() => setSaveError(''), 3000)
+      return
     }
+    const { error } = await supabase.from('predictions')
+      .upsert(rows, { onConflict: 'user_id,match_id' })
     setSaving(false)
+    if (error) {
+      setSaveError(`Error al guardar: ${error.message}`)
+      return
+    }
+    setSavedIds(prev => new Set([...prev, ...rows.map(r => r.match_id)]))
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
@@ -426,10 +436,15 @@ export default function PredictionsPage() {
         )}
 
         {hasMatches && (
-          <button onClick={save} disabled={saving}
-            className="mt-5 w-full bg-gold-500 hover:bg-gold-400 text-black font-bold py-3.5 rounded-2xl transition-colors disabled:opacity-50">
-            {saved ? '✓ Guardado!' : saving ? 'Guardando...' : 'Guardar pronósticos'}
-          </button>
+          <>
+            {saveError && (
+              <p className="mt-4 text-center text-xs text-red-400">{saveError}</p>
+            )}
+            <button onClick={save} disabled={saving}
+              className="mt-3 w-full bg-gold-500 hover:bg-gold-400 text-black font-bold py-3.5 rounded-2xl transition-colors disabled:opacity-50">
+              {saved ? '✓ Guardado!' : saving ? 'Guardando...' : 'Guardar pronósticos'}
+            </button>
+          </>
         )}
       </main>
     </div>
