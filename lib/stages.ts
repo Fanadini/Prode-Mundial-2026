@@ -18,3 +18,14 @@ export function formatMatchDate(date: string | null) {
   const time = d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
   return `${day} · ${time} hs`
 }
+
+export function formatMatchTime(date: string | null) {
+  if (!date) return null
+  const d = new Date(date)
+  return d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) + ' hs'
+}
+
+export function formatCalendarDay(date: string | null) {
+  if (!date) return 'Sin fecha'
+  return new Date(date).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })
+}
