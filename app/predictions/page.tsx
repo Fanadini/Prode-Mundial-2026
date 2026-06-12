@@ -90,6 +90,23 @@ export default function PredictionsPage() {
       return next
     })
 
+  const pastKeys = new Set(pastDayGroups.map(g => g.key))
+  const visibleGroups = showPast ? dayGroups : futureDayGroups
+
+  const setAllExpanded = (expand: boolean) =>
+    setOverriddenDays(() => {
+      const next = new Set<string>()
+      for (const g of visibleGroups) {
+        const isPast = pastKeys.has(g.key)
+        // override needed when expand≠default (future default=expanded, past default=collapsed)
+        if (expand === isPast) next.add(g.key)
+      }
+      return next
+    })
+
+  const allCollapsed = visibleGroups.length > 0 &&
+    visibleGroups.every(g => !isDayExpanded(g.key, pastKeys.has(g.key)))
+
   const save = async () => {
     if (!userId) return
     setSaving(true)
@@ -301,6 +318,17 @@ export default function PredictionsPage() {
                   {pastMatchCount} partidos anteriores
                 </button>
               )
+            )}
+
+            {/* Expand / collapse all */}
+            {visibleGroups.length > 0 && (
+              <div className="flex justify-end gap-4 mb-1">
+                <button
+                  onClick={() => setAllExpanded(!allCollapsed)}
+                  className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors">
+                  {allCollapsed ? 'Mostrar todo' : 'Ocultar todo'}
+                </button>
+              </div>
             )}
 
             {/* Future / current day groups */}
