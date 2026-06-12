@@ -145,9 +145,9 @@ export default function PredictionsPage() {
                 )}
                 <div className="flex items-center gap-2 px-3 py-3">
                   {/* Home team */}
-                  <div className="flex-1 flex items-center justify-end gap-2 min-w-0">
-                    <span className="text-sm font-medium text-white truncate text-right">{match.home_team?.name}</span>
-                    <span className="text-2xl flex-none">{match.home_team?.flag}</span>
+                  <div className="flex-1 flex items-center justify-end gap-1.5 min-w-0">
+                    <span className="text-xs font-medium text-white text-right leading-snug">{match.home_team?.name}</span>
+                    <span className="text-xl flex-none">{match.home_team?.flag}</span>
                   </div>
 
                   {/* Scores */}
@@ -172,9 +172,9 @@ export default function PredictionsPage() {
                   </div>
 
                   {/* Away team */}
-                  <div className="flex-1 flex items-center justify-start gap-2 min-w-0">
-                    <span className="text-2xl flex-none">{match.away_team?.flag}</span>
-                    <span className="text-sm font-medium text-white truncate">{match.away_team?.name}</span>
+                  <div className="flex-1 flex items-center justify-start gap-1.5 min-w-0">
+                    <span className="text-xl flex-none">{match.away_team?.flag}</span>
+                    <span className="text-xs font-medium text-white leading-snug">{match.away_team?.name}</span>
                   </div>
                 </div>
 

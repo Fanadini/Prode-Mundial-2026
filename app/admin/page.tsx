@@ -207,8 +207,9 @@ export default function AdminPage() {
                           <p className="text-center text-xs text-zinc-600 mb-2">{formatMatchDate(match.match_date)}</p>
                         )}
                         <div className="flex items-center gap-2 mb-3">
-                          <div className="flex-1 text-right min-w-0">
-                            <span className="text-sm font-medium text-white">{match.home_team?.flag} {match.home_team?.name}</span>
+                          <div className="flex-1 flex items-center justify-end gap-1.5 min-w-0 text-right">
+                            <span className="text-xs font-medium text-white leading-snug">{match.home_team?.name}</span>
+                            <span className="flex-none">{match.home_team?.flag}</span>
                           </div>
                           <input type="number" min="0" max="20" value={r.home}
                             onChange={e => setResults(rs => ({ ...rs, [match.id]: { ...r, home: e.target.value } }))}
@@ -219,8 +220,9 @@ export default function AdminPage() {
                             onChange={e => setResults(rs => ({ ...rs, [match.id]: { ...r, away: e.target.value } }))}
                             className="w-11 h-10 text-center border border-pitch-600 bg-pitch-900 rounded-lg text-white font-bold text-sm focus:outline-none focus:border-gold-500 flex-none"
                           />
-                          <div className="flex-1 min-w-0">
-                            <span className="text-sm font-medium text-white">{match.away_team?.name} {match.away_team?.flag}</span>
+                          <div className="flex-1 flex items-center justify-start gap-1.5 min-w-0">
+                            <span className="flex-none">{match.away_team?.flag}</span>
+                            <span className="text-xs font-medium text-white leading-snug">{match.away_team?.name}</span>
                           </div>
                         </div>
                         <button onClick={() => saveResult(match.id)} disabled={saving === match.id}
