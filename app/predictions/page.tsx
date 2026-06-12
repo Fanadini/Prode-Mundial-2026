@@ -55,11 +55,21 @@ export default function PredictionsPage() {
     ? stageMatches.filter(m => m.home_team?.group_name === selectedGroup)
     : stageMatches
 
+  const isLocked = (match: MatchWithTeams) => {
+    if (match.is_finished) return true
+    if (!match.match_date) return false
+    return Date.now() >= new Date(match.match_date).getTime() - 60 * 60 * 1000
+  }
+
   const save = async () => {
     if (!userId) return
     setSaving(true)
     const rows = Object.entries(predictions)
-      .filter(([matchId, v]) => v.home !== '' && v.away !== '' && !savedIds.has(Number(matchId)))
+      .filter(([matchId, v]) => {
+        if (v.home === '' || v.away === '') return false
+        const match = matches.find(m => m.id === Number(matchId))
+        return match && !isLocked(match)
+      })
       .map(([matchId, v]) => ({
         user_id: userId,
         match_id: Number(matchId),
@@ -67,7 +77,8 @@ export default function PredictionsPage() {
         away_score: Number(v.away),
       }))
     if (rows.length > 0) {
-      const { error } = await supabase.from('predictions').insert(rows)
+      const { error } = await supabase.from('predictions')
+        .upsert(rows, { onConflict: 'user_id,match_id' })
       if (!error) setSavedIds(prev => new Set([...prev, ...rows.map(r => r.match_id)]))
     }
     setSaving(false)
@@ -120,7 +131,7 @@ export default function PredictionsPage() {
         <div className="space-y-3">
           {filteredMatches.map(match => {
             const pred = predictions[match.id] ?? { home: '', away: '' }
-            const locked = match.is_finished || savedIds.has(match.id)
+            const locked = isLocked(match)
             const dateLabel = formatMatchDate(match.match_date)
             return (
               <div key={match.id}
@@ -171,11 +182,15 @@ export default function PredictionsPage() {
                   <p className="text-center text-xs text-gold-500 pb-3 font-medium">
                     Final: {match.home_score} - {match.away_score}
                   </p>
-                ) : savedIds.has(match.id) && (
-                  <p className="text-center text-xs text-emerald-600 pb-3">
-                    🔒 Guardado — no se puede modificar
+                ) : locked ? (
+                  <p className="text-center text-xs text-zinc-600 pb-3">
+                    🔒 Cerrado — menos de 1h para el partido
                   </p>
-                )}
+                ) : savedIds.has(match.id) ? (
+                  <p className="text-center text-xs text-emerald-600 pb-3">
+                    ✏️ Podés modificar hasta 1h antes
+                  </p>
+                ) : null}
               </div>
             )
           })}
