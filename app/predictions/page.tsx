@@ -410,7 +410,7 @@ export default function PredictionsPage() {
             {visibleGroups.length > 0 && (
               <div className="flex justify-end gap-4 mb-1">
                 <button
-                  onClick={() => setAllExpanded(!allCollapsed)}
+                  onClick={() => setAllExpanded(allCollapsed)}
                   className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors">
                   {allCollapsed ? 'Mostrar todo' : 'Ocultar todo'}
                 </button>
