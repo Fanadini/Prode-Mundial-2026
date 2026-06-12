@@ -97,8 +97,15 @@ export default function HomePage() {
           )}
         </div>
 
+        {/* Prize */}
+        <div className="mt-6 bg-pitch-800 rounded-2xl border border-gold-600/40 p-4">
+          <p className="text-xs font-semibold text-gold-400 uppercase tracking-wide mb-1">🥩 Premio</p>
+          <p className="text-sm text-white font-medium">Un asado para el ganador</p>
+          <p className="text-xs text-zinc-500 mt-1">Invitado por el resto de los jugadores</p>
+        </div>
+
         {/* Point system */}
-        <div className="mt-6 bg-pitch-800 rounded-2xl border border-pitch-700 p-4">
+        <div className="mt-4 bg-pitch-800 rounded-2xl border border-pitch-700 p-4">
           <p className="text-xs font-semibold text-gold-400 uppercase tracking-wide mb-3">Sistema de puntos</p>
           <div className="grid grid-cols-2 gap-1.5 text-xs text-zinc-500">
             <span>Fase de grupos</span><span className="text-zinc-400">1 pt ganador / 3 pt exacto</span>
