@@ -23,30 +23,37 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-green-50">
-      <div className="bg-white p-8 rounded-xl shadow w-full max-w-sm">
-        <h1 className="text-2xl font-bold text-green-700 mb-6 text-center">🏆 Prode Mundial 2026</h1>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-pitch-950 px-4">
+      <div className="mb-8 text-center">
+        <div className="text-5xl mb-3">🏆</div>
+        <h1 className="text-2xl font-bold text-white">Prode <span className="text-gold-400">Mundial 2026</span></h1>
+        <p className="text-zinc-500 text-sm mt-1">by FB</p>
+      </div>
+
+      <div className="w-full max-w-sm bg-pitch-800 rounded-2xl p-6 border border-pitch-700">
+        <h2 className="text-lg font-semibold text-white mb-5">Entrar</h2>
         <form onSubmit={login} className="space-y-4">
           <input
-            className="w-full border rounded px-3 py-2 text-sm"
+            className="w-full bg-pitch-900 border border-pitch-600 rounded-xl px-4 py-3 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-gold-500"
             type="email" placeholder="Email" value={email}
             onChange={e => setEmail(e.target.value)} required
           />
           <input
-            className="w-full border rounded px-3 py-2 text-sm"
+            className="w-full bg-pitch-900 border border-pitch-600 rounded-xl px-4 py-3 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-gold-500"
             type="password" placeholder="Contraseña" value={password}
             onChange={e => setPassword(e.target.value)} required
           />
-          {error && <p className="text-red-500 text-sm">{error}</p>}
+          {error && <p className="text-red-400 text-sm">{error}</p>}
           <button
-            className="w-full bg-green-600 text-white py-2 rounded font-medium hover:bg-green-700 disabled:opacity-50"
+            className="w-full bg-gold-500 hover:bg-gold-400 text-black font-bold py-3 rounded-xl transition-colors disabled:opacity-50"
             disabled={loading}
           >
             {loading ? 'Entrando...' : 'Entrar'}
           </button>
         </form>
-        <p className="text-center text-sm mt-4 text-gray-500">
-          ¿No tenés cuenta? <Link href="/register" className="text-green-600 hover:underline">Registrate</Link>
+        <p className="text-center text-sm mt-4 text-zinc-500">
+          ¿No tenés cuenta?{' '}
+          <Link href="/register" className="text-gold-400 hover:text-gold-300">Registrate</Link>
         </p>
       </div>
     </div>

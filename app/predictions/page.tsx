@@ -27,21 +27,15 @@ export default function PredictionsPage() {
         const { data: { session } } = await supabase.auth.getSession()
         if (!session) { router.push('/login'); return }
         setUserId(session.user.id)
-
         const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', session.user.id).single()
         setIsAdmin(profile?.is_admin ?? false)
-
         const { data: matchData } = await supabase
           .from('matches')
           .select('*, home_team:teams!matches_home_team_id_fkey(*), away_team:teams!matches_away_team_id_fkey(*)')
           .order('match_date', { ascending: true, nullsFirst: false })
           .order('id')
-
         setMatches((matchData as MatchWithTeams[]) ?? [])
-
-        const { data: predData } = await supabase
-          .from('predictions').select('*').eq('user_id', session.user.id)
-
+        const { data: predData } = await supabase.from('predictions').select('*').eq('user_id', session.user.id)
         const predMap: Record<number, { home: string; away: string }> = {}
         const locked = new Set<number>()
         for (const p of (predData as Prediction[]) ?? []) {
@@ -50,9 +44,7 @@ export default function PredictionsPage() {
         }
         setPredictions(predMap)
         setSavedIds(locked)
-      } catch {
-        router.push('/login')
-      }
+      } catch { router.push('/login') }
     }
     load()
   }, [])
@@ -66,7 +58,6 @@ export default function PredictionsPage() {
   const save = async () => {
     if (!userId) return
     setSaving(true)
-    // Solo se insertan pronósticos nuevos: los ya guardados quedan bloqueados
     const rows = Object.entries(predictions)
       .filter(([matchId, v]) => v.home !== '' && v.away !== '' && !savedIds.has(Number(matchId)))
       .map(([matchId, v]) => ({
@@ -75,12 +66,9 @@ export default function PredictionsPage() {
         home_score: Number(v.home),
         away_score: Number(v.away),
       }))
-
     if (rows.length > 0) {
       const { error } = await supabase.from('predictions').insert(rows)
-      if (!error) {
-        setSavedIds(prev => new Set([...prev, ...rows.map(r => r.match_id)]))
-      }
+      if (!error) setSavedIds(prev => new Set([...prev, ...rows.map(r => r.match_id)]))
     }
     setSaving(false)
     setSaved(true)
@@ -88,48 +76,44 @@ export default function PredictionsPage() {
   }
 
   return (
-    <div>
+    <div className="bg-pitch-950 min-h-screen">
       <Nav isAdmin={isAdmin} />
-      <main className="max-w-2xl mx-auto p-6">
-        <h1 className="text-xl font-bold text-gray-800 mb-4">Pronósticos</h1>
+      <main className="max-w-2xl mx-auto px-4 py-6">
+        <h1 className="text-xl font-bold text-white mb-5">Pronósticos</h1>
 
-        <div className="flex flex-wrap gap-2 mb-4">
+        {/* Stage tabs */}
+        <div className="flex gap-2 overflow-x-auto pb-2 mb-4 scrollbar-hide">
           {STAGES.map(s => (
-            <button
-              key={s.key}
-              onClick={() => setSelectedStage(s.key)}
-              className={`px-3 py-1 rounded-full text-sm font-medium ${
+            <button key={s.key} onClick={() => setSelectedStage(s.key)}
+              className={`flex-none px-4 py-1.5 rounded-full text-sm font-medium transition-colors whitespace-nowrap ${
                 selectedStage === s.key
-                  ? 'bg-green-700 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
+                  ? 'bg-gold-500 text-black'
+                  : 'bg-pitch-800 text-zinc-400 hover:text-white border border-pitch-600'
+              }`}>
               {s.label}
             </button>
           ))}
         </div>
 
+        {/* Group tabs */}
         {selectedStage === 'group' && (
-          <div className="flex flex-wrap gap-2 mb-6">
+          <div className="flex gap-2 overflow-x-auto pb-3 mb-4 scrollbar-hide">
             {groups.map(g => (
-              <button
-                key={g}
-                onClick={() => setSelectedGroup(g!)}
-                className={`px-3 py-1 rounded-full text-sm font-medium ${
+              <button key={g} onClick={() => setSelectedGroup(g!)}
+                className={`flex-none px-3 py-1 rounded-full text-xs font-medium transition-colors ${
                   selectedGroup === g
-                    ? 'bg-green-600 text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                Grupo {g}
+                    ? 'bg-white text-black'
+                    : 'bg-pitch-800 text-zinc-500 hover:text-white border border-pitch-600'
+                }`}>
+                Grp {g}
               </button>
             ))}
           </div>
         )}
 
         {filteredMatches.length === 0 && selectedStage !== 'group' && (
-          <div className="bg-white rounded-xl p-8 shadow-sm text-center text-sm text-gray-400">
-            Los cruces de esta fase se cargan cuando se definan los clasificados.
+          <div className="bg-pitch-800 rounded-2xl p-8 border border-pitch-700 text-center text-sm text-zinc-600">
+            Los cruces se cargan cuando se definan los clasificados.
           </div>
         )}
 
@@ -139,42 +123,57 @@ export default function PredictionsPage() {
             const locked = match.is_finished || savedIds.has(match.id)
             const dateLabel = formatMatchDate(match.match_date)
             return (
-              <div key={match.id} className="bg-white rounded-xl p-4 shadow-sm">
+              <div key={match.id}
+                className={`bg-pitch-800 rounded-2xl border transition-colors ${
+                  locked ? 'border-pitch-700' : 'border-pitch-600'
+                }`}>
                 {dateLabel && (
-                  <p className="text-center text-xs text-gray-400 mb-2">📅 {dateLabel}</p>
-                )}
-                <div className="flex items-center gap-3">
-                  <div className="flex-1 text-right">
-                    <span className="text-lg">{match.home_team?.flag}</span>
-                    <span className="ml-2 font-medium text-sm">{match.home_team?.name}</span>
+                  <div className="px-4 pt-3 pb-0">
+                    <p className="text-xs text-zinc-600 text-center">{dateLabel}</p>
                   </div>
-                  <input
-                    type="number" min="0" max="20"
-                    value={pred.home}
-                    disabled={locked}
-                    onChange={e => setPredictions(p => ({ ...p, [match.id]: { ...pred, home: e.target.value } }))}
-                    className="w-12 text-center border rounded-lg py-1 text-lg font-bold disabled:bg-gray-100"
-                  />
-                  <span className="text-gray-400 text-sm">vs</span>
-                  <input
-                    type="number" min="0" max="20"
-                    value={pred.away}
-                    disabled={locked}
-                    onChange={e => setPredictions(p => ({ ...p, [match.id]: { ...pred, away: e.target.value } }))}
-                    className="w-12 text-center border rounded-lg py-1 text-lg font-bold disabled:bg-gray-100"
-                  />
-                  <div className="flex-1">
-                    <span className="font-medium text-sm">{match.away_team?.name}</span>
-                    <span className="ml-2 text-lg">{match.away_team?.flag}</span>
+                )}
+                <div className="flex items-center gap-2 px-3 py-3">
+                  {/* Home team */}
+                  <div className="flex-1 flex items-center justify-end gap-2 min-w-0">
+                    <span className="text-sm font-medium text-white truncate text-right">{match.home_team?.name}</span>
+                    <span className="text-2xl flex-none">{match.home_team?.flag}</span>
+                  </div>
+
+                  {/* Scores */}
+                  <div className="flex items-center gap-1 flex-none">
+                    <input type="number" min="0" max="20" value={pred.home} disabled={locked}
+                      onChange={e => setPredictions(p => ({ ...p, [match.id]: { ...pred, home: e.target.value } }))}
+                      className={`w-11 h-11 text-center text-lg font-bold rounded-xl border transition-colors ${
+                        locked
+                          ? 'bg-pitch-900 border-pitch-600 text-zinc-500'
+                          : 'bg-pitch-900 border-gold-600 text-white focus:border-gold-400 focus:outline-none'
+                      }`}
+                    />
+                    <span className="text-zinc-700 font-bold text-sm">:</span>
+                    <input type="number" min="0" max="20" value={pred.away} disabled={locked}
+                      onChange={e => setPredictions(p => ({ ...p, [match.id]: { ...pred, away: e.target.value } }))}
+                      className={`w-11 h-11 text-center text-lg font-bold rounded-xl border transition-colors ${
+                        locked
+                          ? 'bg-pitch-900 border-pitch-600 text-zinc-500'
+                          : 'bg-pitch-900 border-gold-600 text-white focus:border-gold-400 focus:outline-none'
+                      }`}
+                    />
+                  </div>
+
+                  {/* Away team */}
+                  <div className="flex-1 flex items-center justify-start gap-2 min-w-0">
+                    <span className="text-2xl flex-none">{match.away_team?.flag}</span>
+                    <span className="text-sm font-medium text-white truncate">{match.away_team?.name}</span>
                   </div>
                 </div>
+
                 {match.is_finished ? (
-                  <p className="text-center text-xs text-gray-400 mt-2">
-                    Resultado: {match.home_score} - {match.away_score}
+                  <p className="text-center text-xs text-gold-500 pb-3 font-medium">
+                    Final: {match.home_score} - {match.away_score}
                   </p>
                 ) : savedIds.has(match.id) && (
-                  <p className="text-center text-xs text-green-600 mt-2">
-                    🔒 Pronóstico guardado — no se puede modificar
+                  <p className="text-center text-xs text-emerald-600 pb-3">
+                    🔒 Guardado — no se puede modificar
                   </p>
                 )}
               </div>
@@ -183,11 +182,8 @@ export default function PredictionsPage() {
         </div>
 
         {filteredMatches.length > 0 && (
-          <button
-            onClick={save}
-            disabled={saving}
-            className="mt-6 w-full bg-green-600 text-white py-3 rounded-xl font-medium hover:bg-green-700 disabled:opacity-50"
-          >
+          <button onClick={save} disabled={saving}
+            className="mt-5 w-full bg-gold-500 hover:bg-gold-400 text-black font-bold py-3.5 rounded-2xl transition-colors disabled:opacity-50">
             {saved ? '✓ Guardado!' : saving ? 'Guardando...' : 'Guardar pronósticos'}
           </button>
         )}

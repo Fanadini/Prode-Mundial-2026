@@ -22,22 +22,17 @@ export default function EspecialesPage() {
         const { data: { session } } = await supabase.auth.getSession()
         if (!session) { router.push('/login'); return }
         setUserId(session.user.id)
-
         const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', session.user.id).single()
         setIsAdmin(profile?.is_admin ?? false)
-
         const { data: teamsData } = await supabase.from('teams').select('*').order('name')
         setTeams((teamsData as Team[]) ?? [])
-
         const { data: special } = await supabase
           .from('special_predictions').select('*').eq('user_id', session.user.id).single()
         if (special) {
           setChampionId(String(special.champion_team_id ?? ''))
           setTopScorer(special.top_scorer ?? '')
         }
-      } catch {
-        router.push('/login')
-      }
+      } catch { router.push('/login') }
     }
     load()
   }, [])
@@ -56,40 +51,41 @@ export default function EspecialesPage() {
   }
 
   return (
-    <div>
+    <div className="bg-pitch-950 min-h-screen">
       <Nav isAdmin={isAdmin} />
-      <main className="max-w-xl mx-auto p-6">
-        <h1 className="text-xl font-bold text-gray-800 mb-6">Pronósticos especiales</h1>
+      <main className="max-w-xl mx-auto px-4 py-6">
+        <h1 className="text-xl font-bold text-white mb-2">Especiales</h1>
+        <p className="text-zinc-500 text-sm mb-6">Pronósticos globales del torneo</p>
 
-        <div className="bg-white rounded-xl p-6 shadow-sm space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+        <div className="space-y-4">
+          <div className="bg-pitch-800 rounded-2xl border border-pitch-700 p-5">
+            <label className="block text-sm font-semibold text-white mb-1">
               🏆 Campeón del mundo
-              <span className="ml-2 text-xs text-green-600 font-normal">(10 pts si acertás)</span>
             </label>
+            <p className="text-xs text-gold-500 mb-3">+10 pts si acertás</p>
             <select
               value={championId}
               onChange={e => setChampionId(e.target.value)}
-              className="w-full border rounded-lg px-3 py-2 text-sm"
+              className="w-full bg-pitch-900 border border-pitch-600 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-gold-500"
             >
-              <option value="">-- Elegí un equipo --</option>
+              <option value="">— Elegí un equipo —</option>
               {teams.map(t => (
                 <option key={t.id} value={t.id}>{t.flag} {t.name}</option>
               ))}
             </select>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+          <div className="bg-pitch-800 rounded-2xl border border-pitch-700 p-5">
+            <label className="block text-sm font-semibold text-white mb-1">
               ⚽ Goleador del torneo
-              <span className="ml-2 text-xs text-green-600 font-normal">(5 pts si acertás)</span>
             </label>
+            <p className="text-xs text-gold-500 mb-3">+5 pts si acertás</p>
             <input
               type="text"
               value={topScorer}
               onChange={e => setTopScorer(e.target.value)}
               placeholder="Nombre del jugador"
-              className="w-full border rounded-lg px-3 py-2 text-sm"
+              className="w-full bg-pitch-900 border border-pitch-600 rounded-xl px-4 py-3 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-gold-500"
             />
           </div>
         </div>
@@ -97,7 +93,7 @@ export default function EspecialesPage() {
         <button
           onClick={save}
           disabled={saving}
-          className="mt-6 w-full bg-green-600 text-white py-3 rounded-xl font-medium hover:bg-green-700 disabled:opacity-50"
+          className="mt-6 w-full bg-gold-500 hover:bg-gold-400 text-black font-bold py-3.5 rounded-2xl transition-colors disabled:opacity-50"
         >
           {saved ? '✓ Guardado!' : saving ? 'Guardando...' : 'Guardar'}
         </button>

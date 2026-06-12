@@ -24,9 +24,7 @@ export default function ProfilePage() {
           .from('profiles').select('display_name, is_admin').eq('id', session.user.id).single()
         setDisplayName(profile?.display_name ?? '')
         setIsAdmin(profile?.is_admin ?? false)
-      } catch {
-        router.push('/login')
-      }
+      } catch { router.push('/login') }
     }
     load()
   }, [])
@@ -44,39 +42,34 @@ export default function ProfilePage() {
   }
 
   return (
-    <div>
+    <div className="bg-pitch-950 min-h-screen">
       <Nav isAdmin={isAdmin} />
-      <main className="max-w-md mx-auto p-6">
-        <h1 className="text-xl font-bold text-gray-800 mb-6">Mi perfil</h1>
+      <main className="max-w-md mx-auto px-4 py-6">
+        <h1 className="text-xl font-bold text-white mb-6">Mi perfil</h1>
 
-        <div className="bg-white rounded-xl p-6 shadow-sm space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Nombre en la tabla de posiciones
-            </label>
-            <input
-              type="text"
-              value={displayName}
-              onChange={e => setDisplayName(e.target.value)}
-              maxLength={30}
-              placeholder="Tu nombre"
-              className="w-full border rounded-lg px-3 py-2 text-sm"
-            />
-            <p className="text-xs text-gray-400 mt-1">
-              Así te van a ver tus amigos en la tabla.
-            </p>
-          </div>
-
-          {error && <p className="text-red-500 text-sm">{error}</p>}
-
-          <button
-            onClick={save}
-            disabled={saving || !displayName.trim()}
-            className="w-full bg-green-600 text-white py-2 rounded-lg font-medium hover:bg-green-700 disabled:opacity-50"
-          >
-            {saved ? '✓ Guardado!' : saving ? 'Guardando...' : 'Guardar nombre'}
-          </button>
+        <div className="bg-pitch-800 rounded-2xl border border-pitch-700 p-5">
+          <label className="block text-sm font-semibold text-white mb-1">
+            Nombre en la tabla
+          </label>
+          <p className="text-xs text-zinc-500 mb-3">Así te ven tus amigos en el ranking.</p>
+          <input
+            type="text"
+            value={displayName}
+            onChange={e => setDisplayName(e.target.value)}
+            maxLength={30}
+            placeholder="Tu nombre"
+            className="w-full bg-pitch-900 border border-pitch-600 rounded-xl px-4 py-3 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-gold-500"
+          />
+          {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
         </div>
+
+        <button
+          onClick={save}
+          disabled={saving || !displayName.trim()}
+          className="mt-5 w-full bg-gold-500 hover:bg-gold-400 text-black font-bold py-3.5 rounded-2xl transition-colors disabled:opacity-50"
+        >
+          {saved ? '✓ Guardado!' : saving ? 'Guardando...' : 'Guardar nombre'}
+        </button>
       </main>
     </div>
   )
