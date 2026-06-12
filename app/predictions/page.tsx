@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase-client'
 import Nav from '@/components/Nav'
 import { useRouter } from 'next/navigation'
@@ -9,6 +9,7 @@ import type { Match, Prediction, Team } from '@/lib/types'
 type MatchWithTeams = Match & { home_team: Team; away_team: Team }
 type DayGroup = { key: string; label: string; matches: MatchWithTeams[] }
 type PredEntry = { home: string; away: string; points?: number | null }
+type MatchPred = { display_name: string; home_score: number; away_score: number; points: number | null }
 
 export default function PredictionsPage() {
   const supabase = createClient()
@@ -25,7 +26,20 @@ export default function PredictionsPage() {
   const [viewMode, setViewMode] = useState<'groups' | 'calendar'>('groups')
   const [showPast, setShowPast] = useState(false)
   const [overriddenDays, setOverriddenDays] = useState<Set<string>>(new Set())
+  const [viewingMatchId, setViewingMatchId] = useState<number | null>(null)
+  const [viewingMatch, setViewingMatch] = useState<MatchWithTeams | null>(null)
+  const [matchPreds, setMatchPreds] = useState<MatchPred[]>([])
+  const [loadingMatchPreds, setLoadingMatchPreds] = useState(false)
   const router = useRouter()
+
+  const refreshMatches = useCallback(async () => {
+    const { data } = await supabase
+      .from('matches')
+      .select('*, home_team:teams!matches_home_team_id_fkey(*), away_team:teams!matches_away_team_id_fkey(*)')
+      .order('match_date', { ascending: true, nullsFirst: false })
+      .order('id')
+    if (data) setMatches(data as MatchWithTeams[])
+  }, [])
 
   useEffect(() => {
     const load = async () => {
@@ -35,12 +49,7 @@ export default function PredictionsPage() {
         setUserId(session.user.id)
         const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', session.user.id).single()
         setIsAdmin(profile?.is_admin ?? false)
-        const { data: matchData } = await supabase
-          .from('matches')
-          .select('*, home_team:teams!matches_home_team_id_fkey(*), away_team:teams!matches_away_team_id_fkey(*)')
-          .order('match_date', { ascending: true, nullsFirst: false })
-          .order('id')
-        setMatches((matchData as MatchWithTeams[]) ?? [])
+        await refreshMatches()
         const { data: predData } = await supabase.from('predictions').select('*').eq('user_id', session.user.id)
         const predMap: Record<number, PredEntry> = {}
         const locked = new Set<number>()
@@ -55,6 +64,13 @@ export default function PredictionsPage() {
     load()
   }, [])
 
+  // Re-fetch matches when tab gets focus so finished results appear automatically
+  useEffect(() => {
+    const handleFocus = () => { refreshMatches() }
+    window.addEventListener('focus', handleFocus)
+    return () => window.removeEventListener('focus', handleFocus)
+  }, [refreshMatches])
+
   // Realtime: update match when admin saves a result
   useEffect(() => {
     const channel = supabase
@@ -64,7 +80,6 @@ export default function PredictionsPage() {
           setMatches(prev => prev.map(m =>
             m.id === (payload.new as Match).id ? { ...m, ...(payload.new as Match) } : m
           ))
-          // Also refresh the user's points for this match
           const matchId = (payload.new as Match).id
           supabase.from('predictions').select('*')
             .eq('user_id', userId ?? '')
@@ -80,6 +95,39 @@ export default function PredictionsPage() {
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [userId])
+
+  // Load all participants' predictions when viewing a finished match
+  useEffect(() => {
+    if (!viewingMatchId) return
+    setLoadingMatchPreds(true)
+    setMatchPreds([])
+    setViewingMatch(matches.find(m => m.id === viewingMatchId) ?? null)
+    ;(async () => {
+      const { data: preds } = await supabase
+        .from('predictions')
+        .select('*')
+        .eq('match_id', viewingMatchId)
+      const userIds = [...new Set((preds ?? []).map((p: any) => p.user_id as string))]
+      const { data: profiles } = userIds.length > 0
+        ? await supabase.from('profiles').select('id, display_name').in('id', userIds)
+        : { data: [] }
+      const profileMap: Record<string, string> = Object.fromEntries(
+        (profiles ?? []).map((p: any) => [p.id, p.display_name])
+      )
+      const enriched: MatchPred[] = (preds ?? []).map((p: any) => ({
+        display_name: profileMap[p.user_id] ?? 'Usuario',
+        home_score: p.home_score,
+        away_score: p.away_score,
+        points: p.points,
+      })).sort((a: MatchPred, b: MatchPred) => {
+        if (a.points === null && b.points !== null) return 1
+        if (b.points === null && a.points !== null) return -1
+        return (b.points ?? 0) - (a.points ?? 0)
+      })
+      setMatchPreds(enriched)
+      setLoadingMatchPreds(false)
+    })()
+  }, [viewingMatchId])
 
   const groups = [...new Set(matches.filter(m => m.stage === 'group').map(m => m.home_team?.group_name).filter(Boolean))].sort()
   const stageMatches = matches.filter(m => m.stage === selectedStage)
@@ -253,19 +301,26 @@ export default function PredictionsPage() {
 
         {/* Bottom status row */}
         {match.is_finished ? (
-          hasPred ? (
-            <p className="text-center text-xs pb-3">
-              <span className="text-zinc-600">Tu pronóstico: {pred.home} - {pred.away}</span>
-              {pred.points != null && (
-                <span className={` · font-semibold ${
-                  pred.points >= 3 ? 'text-gold-400' :
-                  pred.points > 0 ? 'text-emerald-500' : 'text-zinc-600'
-                }`}> {pred.points} {pred.points === 1 ? 'pt' : 'pts'}</span>
-              )}
-            </p>
-          ) : (
-            <p className="text-center text-xs text-zinc-700 pb-3">Sin pronóstico</p>
-          )
+          <div className="px-3 pb-3 space-y-2">
+            {hasPred ? (
+              <p className="text-center text-xs">
+                <span className="text-zinc-600">Tu pronóstico: {pred.home} - {pred.away}</span>
+                {pred.points != null && (
+                  <span className={` · font-semibold ${
+                    pred.points >= 3 ? 'text-gold-400' :
+                    pred.points > 0 ? 'text-emerald-500' : 'text-zinc-600'
+                  }`}> {pred.points} {pred.points === 1 ? 'pt' : 'pts'}</span>
+                )}
+              </p>
+            ) : (
+              <p className="text-center text-xs text-zinc-700">Sin pronóstico</p>
+            )}
+            <button
+              onClick={() => setViewingMatchId(match.id)}
+              className="w-full py-1.5 rounded-xl text-xs font-medium bg-pitch-900 border border-pitch-700 text-zinc-500 hover:text-zinc-300 hover:border-pitch-600 transition-colors">
+              Ver pronósticos de todos
+            </button>
+          </div>
         ) : live ? (
           <p className="text-center text-xs text-zinc-600 pb-3">
             El resultado aparece cuando termine
@@ -322,7 +377,6 @@ export default function PredictionsPage() {
       </div>
     )
   }
-
 
   return (
     <div className="bg-pitch-950 min-h-screen">
@@ -433,8 +487,74 @@ export default function PredictionsPage() {
             )}
           </div>
         )}
-
       </main>
+
+      {/* Modal: ver pronósticos de todos para un partido terminado */}
+      {viewingMatchId && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm"
+          onClick={() => setViewingMatchId(null)}>
+          <div
+            className="bg-pitch-800 rounded-t-3xl sm:rounded-3xl w-full max-w-md border border-pitch-700 overflow-hidden"
+            onClick={e => e.stopPropagation()}>
+
+            {/* Modal header with match info */}
+            {viewingMatch && (
+              <div className="px-5 pt-5 pb-3 border-b border-pitch-700">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-bold text-white text-sm">Pronósticos</h3>
+                  <button onClick={() => setViewingMatchId(null)} className="text-zinc-500 hover:text-white text-lg leading-none">✕</button>
+                </div>
+                <div className="flex items-center justify-center gap-3 text-sm">
+                  <span className="text-white font-medium">{viewingMatch.home_team?.flag} {viewingMatch.home_team?.name}</span>
+                  <span className="text-gold-400 font-bold">
+                    {viewingMatch.home_score} - {viewingMatch.away_score}
+                  </span>
+                  <span className="text-white font-medium">{viewingMatch.away_team?.name} {viewingMatch.away_team?.flag}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Predictions list */}
+            <div className="overflow-y-auto max-h-[60vh] px-4 py-3 space-y-2">
+              {loadingMatchPreds ? (
+                <p className="text-center text-zinc-600 text-sm py-6">Cargando...</p>
+              ) : matchPreds.length === 0 ? (
+                <p className="text-center text-zinc-600 text-sm py-6">Nadie pronosticó este partido.</p>
+              ) : (
+                matchPreds.map((p, i) => (
+                  <div key={i} className="flex items-center justify-between bg-pitch-900 rounded-xl px-3 py-2.5">
+                    <span className="text-sm text-white truncate flex-1 mr-3">{p.display_name}</span>
+                    <div className="flex items-center gap-3 flex-none">
+                      <span className="text-sm font-bold text-zinc-300">
+                        {p.home_score} - {p.away_score}
+                      </span>
+                      {p.points != null ? (
+                        <span className={`text-xs font-semibold w-10 text-right ${
+                          p.points >= 3 ? 'text-gold-400' :
+                          p.points > 0 ? 'text-emerald-500' : 'text-zinc-600'
+                        }`}>
+                          {p.points} {p.points === 1 ? 'pt' : 'pts'}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-zinc-700 w-10 text-right">—</span>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="px-4 pb-5 pt-2">
+              <button
+                onClick={() => setViewingMatchId(null)}
+                className="w-full py-2.5 rounded-xl text-sm font-medium bg-pitch-900 border border-pitch-700 text-zinc-400 hover:text-white transition-colors">
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
