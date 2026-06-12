@@ -8,11 +8,12 @@ import type { Match, Prediction, Team } from '@/lib/types'
 
 type MatchWithTeams = Match & { home_team: Team; away_team: Team }
 type DayGroup = { key: string; label: string; matches: MatchWithTeams[] }
+type PredEntry = { home: string; away: string; points?: number | null }
 
 export default function PredictionsPage() {
   const supabase = createClient()
   const [matches, setMatches] = useState<MatchWithTeams[]>([])
-  const [predictions, setPredictions] = useState<Record<number, { home: string; away: string }>>({})
+  const [predictions, setPredictions] = useState<Record<number, PredEntry>>({})
   const [savedIds, setSavedIds] = useState<Set<number>>(new Set())
   const [userId, setUserId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -40,10 +41,10 @@ export default function PredictionsPage() {
           .order('id')
         setMatches((matchData as MatchWithTeams[]) ?? [])
         const { data: predData } = await supabase.from('predictions').select('*').eq('user_id', session.user.id)
-        const predMap: Record<number, { home: string; away: string }> = {}
+        const predMap: Record<number, PredEntry> = {}
         const locked = new Set<number>()
         for (const p of (predData as Prediction[]) ?? []) {
-          predMap[p.match_id] = { home: String(p.home_score), away: String(p.away_score) }
+          predMap[p.match_id] = { home: String(p.home_score), away: String(p.away_score), points: p.points }
           locked.add(p.match_id)
         }
         setPredictions(predMap)
@@ -52,6 +53,32 @@ export default function PredictionsPage() {
     }
     load()
   }, [])
+
+  // Realtime: update match when admin saves a result
+  useEffect(() => {
+    const channel = supabase
+      .channel('matches-live')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'matches' },
+        (payload) => {
+          setMatches(prev => prev.map(m =>
+            m.id === (payload.new as Match).id ? { ...m, ...(payload.new as Match) } : m
+          ))
+          // Also refresh the user's points for this match
+          const matchId = (payload.new as Match).id
+          supabase.from('predictions').select('*')
+            .eq('user_id', userId ?? '')
+            .eq('match_id', matchId)
+            .maybeSingle()
+            .then(({ data }) => {
+              if (data) setPredictions(prev => ({
+                ...prev,
+                [matchId]: { home: String(data.home_score), away: String(data.away_score), points: data.points }
+              }))
+            })
+        })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [userId])
 
   const groups = [...new Set(matches.filter(m => m.stage === 'group').map(m => m.home_team?.group_name).filter(Boolean))].sort()
   const stageMatches = matches.filter(m => m.stage === selectedStage)
@@ -63,6 +90,13 @@ export default function PredictionsPage() {
     if (match.is_finished) return true
     if (!match.match_date) return false
     return Date.now() >= new Date(match.match_date).getTime() - 60 * 60 * 1000
+  }
+
+  const isLive = (match: MatchWithTeams) => {
+    if (match.is_finished || !match.match_date) return false
+    const kickoff = new Date(match.match_date).getTime()
+    const now = Date.now()
+    return kickoff <= now && now <= kickoff + 150 * 60 * 1000
   }
 
   // Build day groups for calendar view
@@ -98,7 +132,6 @@ export default function PredictionsPage() {
       const next = new Set<string>()
       for (const g of visibleGroups) {
         const isPast = pastKeys.has(g.key)
-        // override needed when expand≠default (future default=expanded, past default=collapsed)
         if (expand === isPast) next.add(g.key)
       }
       return next
@@ -135,54 +168,109 @@ export default function PredictionsPage() {
   const renderCard = (match: MatchWithTeams, calendarView = false) => {
     const pred = predictions[match.id] ?? { home: '', away: '' }
     const locked = isLocked(match)
+    const live = isLive(match)
     const timeLabel = calendarView ? formatMatchTime(match.match_date) : formatMatchDate(match.match_date)
+    const hasPred = pred.home !== '' && pred.away !== ''
+
     return (
       <div key={match.id}
-        className={`bg-pitch-800 rounded-2xl border transition-colors ${locked ? 'border-pitch-700' : 'border-pitch-600'}`}>
+        className={`bg-pitch-800 rounded-2xl border transition-colors ${
+          match.is_finished ? 'border-pitch-700' :
+          live ? 'border-red-800/60' :
+          locked ? 'border-pitch-700' : 'border-pitch-600'
+        }`}>
+
+        {/* Date / time */}
         {timeLabel && (
           <div className="px-4 pt-3 pb-0">
             <p className="text-xs text-zinc-600 text-center">{timeLabel}</p>
           </div>
         )}
+
+        {/* Stage label in calendar view */}
         {calendarView && match.stage === 'group' && match.home_team?.group_name && (
           <p className="text-center text-xs text-zinc-700 pt-1">Grupo {match.home_team.group_name}</p>
         )}
         {calendarView && match.stage !== 'group' && (
           <p className="text-center text-xs text-zinc-700 pt-1">{stageLabel(match.stage)}</p>
         )}
+
+        {/* Live badge */}
+        {live && (
+          <div className="flex items-center justify-center gap-1.5 pt-2">
+            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+            <span className="text-xs text-red-400 font-semibold tracking-wide">En vivo</span>
+          </div>
+        )}
+
+        {/* Teams + scores row */}
         <div className="flex items-center gap-2 px-3 py-3">
+          {/* Home team */}
           <div className="flex-1 flex items-center justify-end gap-1.5 min-w-0">
             <span className="text-xs font-medium text-white text-right leading-snug">{match.home_team?.name}</span>
             <span className="text-xl flex-none">{match.home_team?.flag}</span>
           </div>
+
+          {/* Score display */}
           <div className="flex items-center gap-1 flex-none">
-            <input type="number" min="0" max="20" value={pred.home} disabled={locked}
-              onChange={e => setPredictions(p => ({ ...p, [match.id]: { ...pred, home: e.target.value } }))}
-              className={`w-11 h-11 text-center text-lg font-bold rounded-xl border transition-colors ${
-                locked
-                  ? 'bg-pitch-900 border-pitch-600 text-zinc-500'
-                  : 'bg-pitch-900 border-gold-600 text-white focus:border-gold-400 focus:outline-none'
-              }`}
-            />
-            <span className="text-zinc-700 font-bold text-sm">:</span>
-            <input type="number" min="0" max="20" value={pred.away} disabled={locked}
-              onChange={e => setPredictions(p => ({ ...p, [match.id]: { ...pred, away: e.target.value } }))}
-              className={`w-11 h-11 text-center text-lg font-bold rounded-xl border transition-colors ${
-                locked
-                  ? 'bg-pitch-900 border-pitch-600 text-zinc-500'
-                  : 'bg-pitch-900 border-gold-600 text-white focus:border-gold-400 focus:outline-none'
-              }`}
-            />
+            {match.is_finished ? (
+              <>
+                <div className="w-11 h-11 flex items-center justify-center rounded-xl bg-pitch-900 border border-gold-600/50 text-gold-400 font-bold text-lg">
+                  {match.home_score}
+                </div>
+                <span className="text-zinc-600 font-bold text-sm">:</span>
+                <div className="w-11 h-11 flex items-center justify-center rounded-xl bg-pitch-900 border border-gold-600/50 text-gold-400 font-bold text-lg">
+                  {match.away_score}
+                </div>
+              </>
+            ) : (
+              <>
+                <input type="number" min="0" max="20" value={pred.home} disabled={locked}
+                  onChange={e => setPredictions(p => ({ ...p, [match.id]: { ...pred, home: e.target.value } }))}
+                  className={`w-11 h-11 text-center text-lg font-bold rounded-xl border transition-colors ${
+                    locked
+                      ? 'bg-pitch-900 border-pitch-600 text-zinc-500'
+                      : 'bg-pitch-900 border-gold-600 text-white focus:border-gold-400 focus:outline-none'
+                  }`}
+                />
+                <span className="text-zinc-700 font-bold text-sm">:</span>
+                <input type="number" min="0" max="20" value={pred.away} disabled={locked}
+                  onChange={e => setPredictions(p => ({ ...p, [match.id]: { ...pred, away: e.target.value } }))}
+                  className={`w-11 h-11 text-center text-lg font-bold rounded-xl border transition-colors ${
+                    locked
+                      ? 'bg-pitch-900 border-pitch-600 text-zinc-500'
+                      : 'bg-pitch-900 border-gold-600 text-white focus:border-gold-400 focus:outline-none'
+                  }`}
+                />
+              </>
+            )}
           </div>
+
+          {/* Away team */}
           <div className="flex-1 flex items-center justify-start gap-1.5 min-w-0">
             <span className="text-xl flex-none">{match.away_team?.flag}</span>
             <span className="text-xs font-medium text-white leading-snug">{match.away_team?.name}</span>
           </div>
         </div>
 
+        {/* Bottom status row */}
         {match.is_finished ? (
-          <p className="text-center text-xs text-gold-500 pb-3 font-medium">
-            Final: {match.home_score} - {match.away_score}
+          hasPred ? (
+            <p className="text-center text-xs pb-3">
+              <span className="text-zinc-600">Tu pronóstico: {pred.home} - {pred.away}</span>
+              {pred.points != null && (
+                <span className={` · font-semibold ${
+                  pred.points >= 3 ? 'text-gold-400' :
+                  pred.points > 0 ? 'text-emerald-500' : 'text-zinc-600'
+                }`}> {pred.points} {pred.points === 1 ? 'pt' : 'pts'}</span>
+              )}
+            </p>
+          ) : (
+            <p className="text-center text-xs text-zinc-700 pb-3">Sin pronóstico</p>
+          )
+        ) : live ? (
+          <p className="text-center text-xs text-zinc-600 pb-3">
+            El resultado aparece cuando termine
           </p>
         ) : locked ? (
           <p className="text-center text-xs text-zinc-600 pb-3">
@@ -297,7 +385,6 @@ export default function PredictionsPage() {
         {/* Calendar view */}
         {viewMode === 'calendar' && (
           <div>
-            {/* Past matches toggle */}
             {pastMatchCount > 0 && (
               showPast ? (
                 <div className="mb-1">
@@ -320,7 +407,6 @@ export default function PredictionsPage() {
               )
             )}
 
-            {/* Expand / collapse all */}
             {visibleGroups.length > 0 && (
               <div className="flex justify-end gap-4 mb-1">
                 <button
@@ -331,7 +417,6 @@ export default function PredictionsPage() {
               </div>
             )}
 
-            {/* Future / current day groups */}
             {futureDayGroups.map(g => renderDayGroup(g, false))}
 
             {futureDayGroups.length === 0 && (
