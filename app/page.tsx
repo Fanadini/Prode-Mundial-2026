@@ -36,7 +36,7 @@ export default function HomePage() {
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-pitch-950">
       <div className="text-center">
-        <div className="text-4xl mb-3">🏆</div>
+        <img src="/Prode-Mundial-2026/wc26-logo.jpg" alt="FIFA World Cup 2026" className="w-14 h-14 rounded-xl object-cover mx-auto mb-3" />
         <p className="text-zinc-500 text-sm">Cargando...</p>
       </div>
     </div>

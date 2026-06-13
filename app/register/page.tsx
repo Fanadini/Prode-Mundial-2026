@@ -29,7 +29,7 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-pitch-950 px-4">
       <div className="mb-8 text-center">
-        <div className="text-5xl mb-3">🏆</div>
+        <img src="/Prode-Mundial-2026/wc26-logo.jpg" alt="FIFA World Cup 2026" className="w-20 h-20 rounded-2xl object-cover mx-auto mb-3" />
         <h1 className="text-2xl font-bold text-white">Prode <span className="text-gold-400">Mundial 2026</span></h1>
         <p className="text-zinc-500 text-sm mt-1">by FB</p>
       </div>
