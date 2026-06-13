@@ -19,6 +19,7 @@ export default function AdminPage() {
   const [teams, setTeams] = useState<Team[]>([])
   const [results, setResults] = useState<Record<number, { home: string; away: string }>>({})
   const [saving, setSaving] = useState<number | null>(null)
+  const [showFinishedStages, setShowFinishedStages] = useState<Set<string>>(new Set())
   const [newStage, setNewStage] = useState('round_of_32')
   const [newHome, setNewHome] = useState('')
   const [newAway, setNewAway] = useState('')
@@ -138,6 +139,52 @@ export default function AdminPage() {
     if (!error) setUsers(us => us.filter(u => u.id !== userId))
   }
 
+  const toggleFinishedStage = (stage: string) =>
+    setShowFinishedStages(prev => {
+      const next = new Set(prev)
+      next.has(stage) ? next.delete(stage) : next.add(stage)
+      return next
+    })
+
+  const renderMatchCard = (match: MatchWithTeams) => {
+    const r = results[match.id] ?? { home: '', away: '' }
+    return (
+      <div key={match.id}
+        className={`bg-pitch-800 rounded-2xl border p-4 ${match.is_finished ? 'border-emerald-900/40 opacity-70' : 'border-pitch-700'}`}>
+        {match.match_date && (
+          <p className="text-center text-xs text-zinc-600 mb-2">{formatMatchDate(match.match_date)}</p>
+        )}
+        <div className="flex items-center gap-2 mb-3">
+          <div className="flex-1 flex items-center justify-end gap-1.5 min-w-0 text-right">
+            <span className="text-xs font-medium text-white leading-snug">{match.home_team?.name}</span>
+            <span className="flex-none">{match.home_team?.flag}</span>
+          </div>
+          <input type="number" min="0" max="20" value={r.home}
+            onChange={e => setResults(rs => ({ ...rs, [match.id]: { ...r, home: e.target.value } }))}
+            className="w-11 h-10 text-center border border-pitch-600 bg-pitch-900 rounded-lg text-white font-bold text-sm focus:outline-none focus:border-gold-500 flex-none"
+          />
+          <span className="text-zinc-700 text-sm font-bold flex-none">:</span>
+          <input type="number" min="0" max="20" value={r.away}
+            onChange={e => setResults(rs => ({ ...rs, [match.id]: { ...r, away: e.target.value } }))}
+            className="w-11 h-10 text-center border border-pitch-600 bg-pitch-900 rounded-lg text-white font-bold text-sm focus:outline-none focus:border-gold-500 flex-none"
+          />
+          <div className="flex-1 flex items-center justify-start gap-1.5 min-w-0">
+            <span className="flex-none">{match.away_team?.flag}</span>
+            <span className="text-xs font-medium text-white leading-snug">{match.away_team?.name}</span>
+          </div>
+        </div>
+        <button onClick={() => saveResult(match.id)} disabled={saving === match.id}
+          className={`w-full py-2 rounded-xl text-sm font-semibold transition-colors ${
+            match.is_finished
+              ? 'bg-emerald-900/40 text-emerald-400 border border-emerald-900/50 hover:bg-emerald-900/60'
+              : 'bg-gold-500 hover:bg-gold-400 text-black disabled:opacity-50'
+          }`}>
+          {saving === match.id ? 'Guardando...' : match.is_finished ? '✓ Actualizar resultado' : 'Guardar resultado'}
+        </button>
+      </div>
+    )
+  }
+
   const stages = STAGES.map(s => s.key).filter(key => matches.some(m => m.stage === key))
 
   return (
@@ -192,53 +239,43 @@ export default function AdminPage() {
 
             <p className="text-xs text-zinc-600 mb-4">Al guardar un resultado, los puntos se recalculan para todos.</p>
 
-            {stages.map(stage => (
-              <div key={stage} className="mb-8">
-                <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-widest mb-3">
-                  {stage === 'group' ? 'Fase de grupos' : stageLabel(stage)}
-                </h2>
-                <div className="space-y-2">
-                  {matches.filter(m => m.stage === stage).map(match => {
-                    const r = results[match.id] ?? { home: '', away: '' }
-                    return (
-                      <div key={match.id}
-                        className={`bg-pitch-800 rounded-2xl border p-4 ${match.is_finished ? 'border-emerald-900/50' : 'border-pitch-700'}`}>
-                        {match.match_date && (
-                          <p className="text-center text-xs text-zinc-600 mb-2">{formatMatchDate(match.match_date)}</p>
-                        )}
-                        <div className="flex items-center gap-2 mb-3">
-                          <div className="flex-1 flex items-center justify-end gap-1.5 min-w-0 text-right">
-                            <span className="text-xs font-medium text-white leading-snug">{match.home_team?.name}</span>
-                            <span className="flex-none">{match.home_team?.flag}</span>
-                          </div>
-                          <input type="number" min="0" max="20" value={r.home}
-                            onChange={e => setResults(rs => ({ ...rs, [match.id]: { ...r, home: e.target.value } }))}
-                            className="w-11 h-10 text-center border border-pitch-600 bg-pitch-900 rounded-lg text-white font-bold text-sm focus:outline-none focus:border-gold-500 flex-none"
-                          />
-                          <span className="text-zinc-700 text-sm font-bold flex-none">:</span>
-                          <input type="number" min="0" max="20" value={r.away}
-                            onChange={e => setResults(rs => ({ ...rs, [match.id]: { ...r, away: e.target.value } }))}
-                            className="w-11 h-10 text-center border border-pitch-600 bg-pitch-900 rounded-lg text-white font-bold text-sm focus:outline-none focus:border-gold-500 flex-none"
-                          />
-                          <div className="flex-1 flex items-center justify-start gap-1.5 min-w-0">
-                            <span className="flex-none">{match.away_team?.flag}</span>
-                            <span className="text-xs font-medium text-white leading-snug">{match.away_team?.name}</span>
-                          </div>
+            {stages.map(stage => {
+              const stageMatches = matches.filter(m => m.stage === stage)
+              const pending = stageMatches.filter(m => !m.is_finished)
+              const finished = stageMatches.filter(m => m.is_finished)
+              const expanded = showFinishedStages.has(stage)
+              return (
+                <div key={stage} className="mb-8">
+                  <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-widest mb-3">
+                    {stage === 'group' ? 'Fase de grupos' : stageLabel(stage)}
+                  </h2>
+                  {pending.length === 0 && finished.length > 0 && !expanded && (
+                    <p className="text-xs text-zinc-700 mb-2">Todos los partidos cargados.</p>
+                  )}
+                  <div className="space-y-2">
+                    {pending.map(match => renderMatchCard(match))}
+                  </div>
+                  {finished.length > 0 && (
+                    <div className="mt-3">
+                      <button
+                        onClick={() => toggleFinishedStage(stage)}
+                        className="flex items-center gap-1.5 text-xs text-zinc-600 hover:text-zinc-400 transition-colors w-full py-1">
+                        <svg className={`w-3 h-3 transition-transform ${expanded ? 'rotate-180' : ''}`}
+                          fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                        {expanded ? 'Ocultar cargados' : `${finished.length} cargado${finished.length === 1 ? '' : 's'}`}
+                      </button>
+                      {expanded && (
+                        <div className="space-y-2 mt-2">
+                          {finished.map(match => renderMatchCard(match))}
                         </div>
-                        <button onClick={() => saveResult(match.id)} disabled={saving === match.id}
-                          className={`w-full py-2 rounded-xl text-sm font-semibold transition-colors ${
-                            match.is_finished
-                              ? 'bg-emerald-900/40 text-emerald-400 border border-emerald-900/50'
-                              : 'bg-gold-500 hover:bg-gold-400 text-black disabled:opacity-50'
-                          }`}>
-                          {saving === match.id ? 'Guardando...' : match.is_finished ? '✓ Guardado' : 'Guardar resultado'}
-                        </button>
-                      </div>
-                    )
-                  })}
+                      )}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </>
         )}
 
