@@ -33,6 +33,7 @@ export default function AdminPage() {
   const [editName, setEditName] = useState<Record<string, string>>({})
   const [savingUser, setSavingUser] = useState<string | null>(null)
   const [myId, setMyId] = useState<string>('')
+  const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -40,8 +41,9 @@ export default function AdminPage() {
         const { data: { session } } = await supabase.auth.getSession()
         if (!session) { router.push('/login'); return }
         setMyId(session.user.id)
-        const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', session.user.id).single()
-        if (!profile?.is_admin) { router.push('/'); return }
+        const { data: profile } = await supabase.from('profiles').select('is_admin, is_scorer').eq('id', session.user.id).single()
+        if (!profile?.is_admin && !profile?.is_scorer) { router.push('/'); return }
+        setIsAdmin(profile?.is_admin ?? false)
 
         const [{ data: teamsData }, { data: matchData }, { data: usersData }, { data: predsData }] = await Promise.all([
           supabase.from('teams').select('*').order('name'),
@@ -135,6 +137,11 @@ export default function AdminPage() {
     setUsers(us => us.map(u => u.id === userId ? { ...u, is_admin: !current } : u))
   }
 
+  const toggleScorer = async (userId: string, current: boolean) => {
+    await supabase.from('profiles').update({ is_scorer: !current }).eq('id', userId)
+    setUsers(us => us.map(u => u.id === userId ? { ...u, is_scorer: !current } : u))
+  }
+
   const deleteUser = async (userId: string, name: string) => {
     if (!confirm(`¿Borrar a "${name}"?\nSe eliminan todos sus pronósticos. Esta acción no se puede deshacer.`)) return
     const { error } = await supabase.from('profiles').delete().eq('id', userId)
@@ -200,24 +207,29 @@ export default function AdminPage() {
     <div className="bg-pitch-950 min-h-screen">
       <Nav isAdmin={true} />
       <main className="max-w-2xl mx-auto px-4 py-6">
-        <h1 className="text-xl font-bold text-white mb-5">Panel Admin</h1>
+        <h1 className="text-xl font-bold text-white mb-5">
+          Panel {isAdmin ? 'Admin' : 'Resultados'}
+        </h1>
 
-        {/* Tab switcher */}
-        <div className="flex gap-2 mb-6">
-          {[{ key: 'results', label: '📋 Resultados' }, { key: 'users', label: '👥 Usuarios' }].map(t => (
-            <button key={t.key} onClick={() => setTab(t.key as 'results' | 'users')}
-              className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
-                tab === t.key ? 'bg-gold-500 text-black' : 'bg-pitch-800 text-zinc-400 border border-pitch-600 hover:text-white'
-              }`}>
-              {t.label}
-            </button>
-          ))}
-        </div>
+        {/* Tab switcher — solo admins ven la pestaña de usuarios */}
+        {isAdmin && (
+          <div className="flex gap-2 mb-6">
+            {[{ key: 'results', label: '📋 Resultados' }, { key: 'users', label: '👥 Usuarios' }].map(t => (
+              <button key={t.key} onClick={() => setTab(t.key as 'results' | 'users')}
+                className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
+                  tab === t.key ? 'bg-gold-500 text-black' : 'bg-pitch-800 text-zinc-400 border border-pitch-600 hover:text-white'
+                }`}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* ── RESULTS TAB ── */}
         {tab === 'results' && (
           <>
-            <div className="bg-pitch-800 rounded-2xl border border-gold-600/30 p-5 mb-8">
+            {/* Formulario de nuevo cruce — solo admins */}
+            {isAdmin && <div className="bg-pitch-800 rounded-2xl border border-gold-600/30 p-5 mb-8">
               <h2 className="text-sm font-semibold text-gold-400 mb-4">➕ Nuevo cruce de eliminatorias</h2>
               <div className="grid grid-cols-2 gap-3 mb-3">
                 <select value={newStage} onChange={e => setNewStage(e.target.value)}
@@ -244,7 +256,7 @@ export default function AdminPage() {
                 className="w-full bg-gold-500 hover:bg-gold-400 text-black font-bold py-2.5 rounded-xl text-sm transition-colors disabled:opacity-50">
                 {creating ? 'Creando...' : 'Crear partido'}
               </button>
-            </div>
+            </div>}
 
             <p className="text-xs text-zinc-600 mb-4">Al guardar un resultado, los puntos se recalculan para todos.</p>
 
@@ -316,7 +328,7 @@ export default function AdminPage() {
                   </button>
                 </div>
 
-                <div className="flex items-center gap-3 mt-3">
+                <div className="flex items-center gap-3 mt-3 flex-wrap">
                   <button
                     onClick={() => toggleAdmin(user.id, user.is_admin)}
                     disabled={user.id === myId}
@@ -328,6 +340,19 @@ export default function AdminPage() {
                   >
                     {user.is_admin ? '⭐ Admin' : 'Usuario'}
                   </button>
+                  {!user.is_admin && (
+                    <button
+                      onClick={() => toggleScorer(user.id, user.is_scorer)}
+                      disabled={user.id === myId}
+                      className={`text-xs px-3 py-1.5 rounded-full font-medium border transition-colors disabled:opacity-40 ${
+                        user.is_scorer
+                          ? 'bg-blue-900/40 text-blue-400 border-blue-800/50'
+                          : 'bg-pitch-700 text-zinc-600 border-pitch-600 hover:text-zinc-400'
+                      }`}
+                    >
+                      {user.is_scorer ? '📋 Cargador' : 'Sin rol extra'}
+                    </button>
+                  )}
 
                   {(predCount[user.id] ?? 0) > 0 ? (
                     <span className="text-xs text-emerald-500 font-medium">

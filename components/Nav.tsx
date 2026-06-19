@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-client'
 
-export default function Nav({ isAdmin }: { isAdmin?: boolean }) {
+export default function Nav({ isAdmin, isScorer }: { isAdmin?: boolean; isScorer?: boolean }) {
   const router = useRouter()
   const supabase = createClient()
   const [open, setOpen] = useState(false)
@@ -20,7 +20,7 @@ export default function Nav({ isAdmin }: { isAdmin?: boolean }) {
     { href: '/predictions/especiales', label: 'Especiales' },
     { href: '/', label: 'Tabla' },
     { href: '/profile', label: 'Mi perfil' },
-    ...(isAdmin ? [{ href: '/admin', label: 'Admin' }] : []),
+    ...((isAdmin || isScorer) ? [{ href: '/admin', label: 'Admin' }] : []),
   ]
 
   return (

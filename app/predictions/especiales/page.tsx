@@ -14,6 +14,7 @@ export default function EspecialesPage() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [isScorer, setIsScorer] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -22,8 +23,9 @@ export default function EspecialesPage() {
         const { data: { session } } = await supabase.auth.getSession()
         if (!session) { router.push('/login'); return }
         setUserId(session.user.id)
-        const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', session.user.id).single()
+        const { data: profile } = await supabase.from('profiles').select('is_admin, is_scorer').eq('id', session.user.id).single()
         setIsAdmin(profile?.is_admin ?? false)
+        setIsScorer(profile?.is_scorer ?? false)
         const { data: teamsData } = await supabase.from('teams').select('*').order('name')
         setTeams((teamsData as Team[]) ?? [])
         const { data: special } = await supabase
@@ -52,7 +54,7 @@ export default function EspecialesPage() {
 
   return (
     <div className="bg-pitch-950 min-h-screen">
-      <Nav isAdmin={isAdmin} />
+      <Nav isAdmin={isAdmin} isScorer={isScorer} />
       <main className="max-w-xl mx-auto px-4 py-6">
         <h1 className="text-xl font-bold text-white mb-2">Especiales</h1>
         <p className="text-zinc-500 text-sm mb-6">Pronósticos globales del torneo</p>

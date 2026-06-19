@@ -10,6 +10,7 @@ export default function ProfilePage() {
   const [displayName, setDisplayName] = useState('')
   const [userId, setUserId] = useState<string | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [isScorer, setIsScorer] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
@@ -21,9 +22,10 @@ export default function ProfilePage() {
         if (!session) { router.push('/login'); return }
         setUserId(session.user.id)
         const { data: profile } = await supabase
-          .from('profiles').select('display_name, is_admin').eq('id', session.user.id).single()
+          .from('profiles').select('display_name, is_admin, is_scorer').eq('id', session.user.id).single()
         setDisplayName(profile?.display_name ?? '')
         setIsAdmin(profile?.is_admin ?? false)
+        setIsScorer(profile?.is_scorer ?? false)
       } catch { router.push('/login') }
     }
     load()
@@ -43,7 +45,7 @@ export default function ProfilePage() {
 
   return (
     <div className="bg-pitch-950 min-h-screen">
-      <Nav isAdmin={isAdmin} />
+      <Nav isAdmin={isAdmin} isScorer={isScorer} />
       <main className="max-w-md mx-auto px-4 py-6">
         <h1 className="text-xl font-bold text-white mb-6">Mi perfil</h1>
 

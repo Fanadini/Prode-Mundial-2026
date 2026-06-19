@@ -13,6 +13,7 @@ export default function HomePage() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
   const [userId, setUserId] = useState<string | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [isScorer, setIsScorer] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -21,8 +22,9 @@ export default function HomePage() {
         const { data: { session } } = await supabase.auth.getSession()
         if (!session) { router.push('/login'); return }
         setUserId(session.user.id)
-        const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', session.user.id).single()
+        const { data: profile } = await supabase.from('profiles').select('is_admin, is_scorer').eq('id', session.user.id).single()
         setIsAdmin(profile?.is_admin ?? false)
+        setIsScorer(profile?.is_scorer ?? false)
         const { data } = await supabase.from('leaderboard').select('*')
         setLeaderboard((data as LeaderboardEntry[]) ?? [])
         setLoading(false)
@@ -44,7 +46,7 @@ export default function HomePage() {
 
   return (
     <div className="bg-pitch-950 min-h-screen">
-      <Nav isAdmin={isAdmin} />
+      <Nav isAdmin={isAdmin} isScorer={isScorer} />
       <main className="max-w-2xl mx-auto px-4 py-6">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-white">Tabla de posiciones</h1>

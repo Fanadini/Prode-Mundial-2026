@@ -21,6 +21,7 @@ export default function PredictionsPage() {
   const [savedMatch, setSavedMatch] = useState<number | null>(null)
   const [saveError, setSaveError] = useState<Record<number, string>>({})
   const [isAdmin, setIsAdmin] = useState(false)
+  const [isScorer, setIsScorer] = useState(false)
   const [selectedStage, setSelectedStage] = useState('group')
   const [selectedGroup, setSelectedGroup] = useState('A')
   const [viewMode, setViewMode] = useState<'groups' | 'calendar'>('groups')
@@ -47,8 +48,9 @@ export default function PredictionsPage() {
         const { data: { session } } = await supabase.auth.getSession()
         if (!session) { router.push('/login'); return }
         setUserId(session.user.id)
-        const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', session.user.id).single()
+        const { data: profile } = await supabase.from('profiles').select('is_admin, is_scorer').eq('id', session.user.id).single()
         setIsAdmin(profile?.is_admin ?? false)
+        setIsScorer(profile?.is_scorer ?? false)
         await refreshMatches()
         const { data: predData } = await supabase.from('predictions').select('*').eq('user_id', session.user.id)
         const predMap: Record<number, PredEntry> = {}
@@ -380,7 +382,7 @@ export default function PredictionsPage() {
 
   return (
     <div className="bg-pitch-950 min-h-screen">
-      <Nav isAdmin={isAdmin} />
+      <Nav isAdmin={isAdmin} isScorer={isScorer} />
       <main className="max-w-2xl mx-auto px-4 py-6">
         <div className="flex items-center justify-between mb-5">
           <h1 className="text-xl font-bold text-white">Pronósticos</h1>
