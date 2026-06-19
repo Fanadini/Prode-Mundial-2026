@@ -94,13 +94,15 @@ export default function AdminPage() {
   }
 
   const saveResult = async (matchId: number) => {
+    const match = matches.find(m => m.id === matchId)!
+    if (isResultLocked(match)) return
     const r = results[matchId]
     if (r.home === '' || r.away === '') return
     setSaving(matchId)
     const home_score = Number(r.home), away_score = Number(r.away)
     await supabase.from('matches').update({ home_score, away_score, is_finished: true }).eq('id', matchId)
     const { data: preds } = await supabase.from('predictions').select('*').eq('match_id', matchId)
-    const match = matches.find(m => m.id === matchId)!
+    const matchForPoints = matches.find(m => m.id === matchId)!
     for (const pred of preds ?? []) {
       const exactScore = pred.home_score === home_score && pred.away_score === away_score
       const getResult = (h: number, a: number) => h > a ? 'home' : a > h ? 'away' : 'draw'
@@ -109,7 +111,7 @@ export default function AdminPage() {
         group: [1, 3], round_of_32: [2, 5], round_of_16: [2, 5],
         quarter: [3, 6], semi: [3, 6], final: [4, 8],
       }
-      const [correct, exact] = stagePoints[match.stage] ?? [1, 3]
+      const [correct, exact] = stagePoints[matchForPoints.stage] ?? [1, 3]
       await supabase.from('predictions').update({
         points: exactScore ? exact : correctResult ? correct : 0
       }).eq('id', pred.id)
@@ -139,6 +141,10 @@ export default function AdminPage() {
     if (!error) setUsers(us => us.filter(u => u.id !== userId))
   }
 
+  const isResultLocked = (match: MatchWithTeams) =>
+    match.is_finished && match.match_date != null &&
+    Date.now() - new Date(match.match_date).getTime() > 24 * 60 * 60 * 1000
+
   const toggleFinishedStage = (stage: string) =>
     setShowFinishedStages(prev => {
       const next = new Set(prev)
@@ -148,6 +154,7 @@ export default function AdminPage() {
 
   const renderMatchCard = (match: MatchWithTeams) => {
     const r = results[match.id] ?? { home: '', away: '' }
+    const locked = isResultLocked(match)
     return (
       <div key={match.id}
         className={`bg-pitch-800 rounded-2xl border p-4 ${match.is_finished ? 'border-emerald-900/40 opacity-70' : 'border-pitch-700'}`}>
@@ -159,27 +166,29 @@ export default function AdminPage() {
             <span className="text-xs font-medium text-white leading-snug">{match.home_team?.name}</span>
             <span className="flex-none">{match.home_team?.flag}</span>
           </div>
-          <input type="number" min="0" max="20" value={r.home}
+          <input type="number" min="0" max="20" value={r.home} disabled={locked}
             onChange={e => setResults(rs => ({ ...rs, [match.id]: { ...r, home: e.target.value } }))}
-            className="w-11 h-10 text-center border border-pitch-600 bg-pitch-900 rounded-lg text-white font-bold text-sm focus:outline-none focus:border-gold-500 flex-none"
+            className="w-11 h-10 text-center border border-pitch-600 bg-pitch-900 rounded-lg text-white font-bold text-sm focus:outline-none focus:border-gold-500 flex-none disabled:opacity-40 disabled:cursor-not-allowed"
           />
           <span className="text-zinc-700 text-sm font-bold flex-none">:</span>
-          <input type="number" min="0" max="20" value={r.away}
+          <input type="number" min="0" max="20" value={r.away} disabled={locked}
             onChange={e => setResults(rs => ({ ...rs, [match.id]: { ...r, away: e.target.value } }))}
-            className="w-11 h-10 text-center border border-pitch-600 bg-pitch-900 rounded-lg text-white font-bold text-sm focus:outline-none focus:border-gold-500 flex-none"
+            className="w-11 h-10 text-center border border-pitch-600 bg-pitch-900 rounded-lg text-white font-bold text-sm focus:outline-none focus:border-gold-500 flex-none disabled:opacity-40 disabled:cursor-not-allowed"
           />
           <div className="flex-1 flex items-center justify-start gap-1.5 min-w-0">
             <span className="flex-none">{match.away_team?.flag}</span>
             <span className="text-xs font-medium text-white leading-snug">{match.away_team?.name}</span>
           </div>
         </div>
-        <button onClick={() => saveResult(match.id)} disabled={saving === match.id}
-          className={`w-full py-2 rounded-xl text-sm font-semibold transition-colors ${
-            match.is_finished
+        <button onClick={() => saveResult(match.id)} disabled={saving === match.id || locked}
+          className={`w-full py-2 rounded-xl text-sm font-semibold transition-colors disabled:cursor-not-allowed ${
+            locked
+              ? 'bg-pitch-900 text-zinc-700 border border-pitch-700'
+              : match.is_finished
               ? 'bg-emerald-900/40 text-emerald-400 border border-emerald-900/50 hover:bg-emerald-900/60'
               : 'bg-gold-500 hover:bg-gold-400 text-black disabled:opacity-50'
           }`}>
-          {saving === match.id ? 'Guardando...' : match.is_finished ? '✓ Actualizar resultado' : 'Guardar resultado'}
+          {saving === match.id ? 'Guardando...' : locked ? '🔒 Bloqueado (+24hs)' : match.is_finished ? '✓ Actualizar resultado' : 'Guardar resultado'}
         </button>
       </div>
     )
