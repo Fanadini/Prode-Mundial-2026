@@ -66,7 +66,7 @@ export default function HomePage() {
       .eq('user_id', targetUserId)
       .gt('points', 0)
       .order('points', { ascending: false })
-    setUserDetails(prev => ({ ...prev, [targetUserId]: (data ?? []) as PredDetail[] }))
+    setUserDetails(prev => ({ ...prev, [targetUserId]: (data ?? []) as unknown as PredDetail[] }))
     setLoadingDetail(false)
   }
 
