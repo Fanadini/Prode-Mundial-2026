@@ -14,6 +14,7 @@ type PredDetail = {
   match: {
     home_score: number
     away_score: number
+    match_date: string | null
     home_team: { name: string; flag: string }
     away_team: { name: string; flag: string }
   }
@@ -58,7 +59,7 @@ export default function HomePage() {
       .select(`
         home_score, away_score, points,
         match:matches(
-          home_score, away_score,
+          home_score, away_score, match_date,
           home_team:teams!matches_home_team_id_fkey(name, flag),
           away_team:teams!matches_away_team_id_fkey(name, flag)
         )
@@ -165,10 +166,12 @@ export default function HomePage() {
                               </span>
                               <span>{d.match.away_team.flag}</span>
                             </div>
-                            {/* Prediction */}
+                            {/* Match date */}
                             <div className="flex-1 min-w-0">
                               <span className="text-xs text-zinc-600">
-                                pronó {d.home_score}-{d.away_score}
+                                {d.match.match_date
+                                  ? new Date(d.match.match_date).toLocaleDateString('es-AR', { day: 'numeric', month: 'short', timeZone: 'America/Argentina/Buenos_Aires' })
+                                  : ''}
                               </span>
                             </div>
                             {/* Points */}
