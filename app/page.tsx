@@ -66,8 +66,10 @@ export default function HomePage() {
       `)
       .eq('user_id', targetUserId)
       .gt('points', 0)
-      .order('points', { ascending: false })
-    setUserDetails(prev => ({ ...prev, [targetUserId]: (data ?? []) as unknown as PredDetail[] }))
+    const sorted = [...(data ?? [])].sort((a: any, b: any) =>
+      new Date(b.match?.match_date ?? 0).getTime() - new Date(a.match?.match_date ?? 0).getTime()
+    )
+    setUserDetails(prev => ({ ...prev, [targetUserId]: sorted as unknown as PredDetail[] }))
     setLoadingDetail(false)
   }
 
