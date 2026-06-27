@@ -20,6 +20,7 @@ export type Match = {
   match_date: string | null
   home_score: number | null
   away_score: number | null
+  winner: string | null  // 'home' | 'away' — set by admin for elimination rounds
   is_finished: boolean
   home_team?: Team
   away_team?: Team
@@ -29,8 +30,10 @@ export type Prediction = {
   id: number
   user_id: string
   match_id: number
-  home_score: number
-  away_score: number
+  home_score: number | null
+  away_score: number | null
+  result_prediction: string | null    // '1' | 'X' | '2' — elimination rounds only
+  advances_prediction: string | null  // 'home' | 'away' — when result_prediction is 'X'
   points: number
 }
 

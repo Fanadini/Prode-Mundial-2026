@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase-client'
 import Nav from '@/components/Nav'
 import { useRouter } from 'next/navigation'
-import { STAGES, stageLabel, formatMatchDate } from '@/lib/stages'
+import { STAGES, stageLabel, formatMatchDate, isEliminationStage } from '@/lib/stages'
 import type { Match, Team, Profile } from '@/lib/types'
 
 type MatchWithTeams = Match & { home_team: Team; away_team: Team }
@@ -17,7 +17,7 @@ export default function AdminPage() {
   // Results state
   const [matches, setMatches] = useState<MatchWithTeams[]>([])
   const [teams, setTeams] = useState<Team[]>([])
-  const [results, setResults] = useState<Record<number, { home: string; away: string }>>({})
+  const [results, setResults] = useState<Record<number, { home: string; away: string; winner: string }>>({})
   const [saving, setSaving] = useState<number | null>(null)
   const [showFinishedStages, setShowFinishedStages] = useState<Set<string>>(new Set())
   const [newStage, setNewStage] = useState('round_of_32')
@@ -63,11 +63,12 @@ export default function AdminPage() {
         }
         setPredCount(counts)
 
-        const map: Record<number, { home: string; away: string }> = {}
+        const map: Record<number, { home: string; away: string; winner: string }> = {}
         for (const m of (matchData as MatchWithTeams[]) ?? []) {
           map[m.id] = {
             home: m.home_score !== null ? String(m.home_score) : '',
             away: m.away_score !== null ? String(m.away_score) : '',
+            winner: m.winner ?? '',
           }
         }
         setResults(map)
@@ -91,7 +92,7 @@ export default function AdminPage() {
     setCreating(false)
     if (error) { setCreateError(error.message); return }
     setMatches(ms => [...ms, data as MatchWithTeams])
-    setResults(rs => ({ ...rs, [(data as MatchWithTeams).id]: { home: '', away: '' } }))
+    setResults(rs => ({ ...rs, [(data as MatchWithTeams).id]: { home: '', away: '', winner: '' } }))
     setNewHome(''); setNewAway(''); setNewDate('')
   }
 
@@ -100,26 +101,44 @@ export default function AdminPage() {
     if (isResultLocked(match)) return
     const r = results[matchId]
     if (r.home === '' || r.away === '') return
+    const isElim = isEliminationStage(match.stage)
+    if (isElim && !r.winner) return
+
     setSaving(matchId)
     const home_score = Number(r.home), away_score = Number(r.away)
-    await supabase.from('matches').update({ home_score, away_score, is_finished: true }).eq('id', matchId)
+    const winner = isElim ? r.winner : null
+
+    await supabase.from('matches').update({
+      home_score, away_score, is_finished: true,
+      ...(winner ? { winner } : {}),
+    }).eq('id', matchId)
+
     const { data: preds } = await supabase.from('predictions').select('*').eq('match_id', matchId)
-    const matchForPoints = matches.find(m => m.id === matchId)!
+
     for (const pred of preds ?? []) {
-      const exactScore = pred.home_score === home_score && pred.away_score === away_score
-      const getResult = (h: number, a: number) => h > a ? 'home' : a > h ? 'away' : 'draw'
-      const correctResult = getResult(pred.home_score, pred.away_score) === getResult(home_score, away_score)
-      const stagePoints: Record<string, [number, number]> = {
-        group: [1, 3], round_of_32: [2, 5], round_of_16: [2, 5],
-        quarter: [3, 6], semi: [3, 6], final: [4, 8],
+      let points = 0
+      if (isElim) {
+        const actual90 = home_score > away_score ? '1' : away_score > home_score ? '2' : 'X'
+        if (pred.result_prediction === actual90) {
+          points = 2
+          if (actual90 === 'X' && pred.advances_prediction && winner) {
+            if (pred.advances_prediction === winner) points += 1
+          }
+        }
+      } else {
+        const exactScore = pred.home_score === home_score && pred.away_score === away_score
+        const getResult = (h: number, a: number) => h > a ? 'home' : a > h ? 'away' : 'draw'
+        const correctResult = getResult(pred.home_score, pred.away_score) === getResult(home_score, away_score)
+        points = exactScore ? 3 : correctResult ? 1 : 0
       }
-      const [correct, exact] = stagePoints[matchForPoints.stage] ?? [1, 3]
-      await supabase.from('predictions').update({
-        points: exactScore ? exact : correctResult ? correct : 0
-      }).eq('id', pred.id)
+      await supabase.from('predictions').update({ points }).eq('id', pred.id)
     }
+
     setSaving(null)
-    setMatches(ms => ms.map(m => m.id === matchId ? { ...m, home_score, away_score, is_finished: true } : m))
+    setMatches(ms => ms.map(m => m.id === matchId
+      ? { ...m, home_score, away_score, winner: winner ?? null, is_finished: true }
+      : m
+    ))
   }
 
   // ── Users ──────────────────────────────────────────────
@@ -160,14 +179,19 @@ export default function AdminPage() {
     })
 
   const renderMatchCard = (match: MatchWithTeams) => {
-    const r = results[match.id] ?? { home: '', away: '' }
+    const r = results[match.id] ?? { home: '', away: '', winner: '' }
     const locked = isResultLocked(match)
+    const isElim = isEliminationStage(match.stage)
+    const isSaveDisabled = saving === match.id || locked || (isElim && !r.winner)
+
     return (
       <div key={match.id}
         className={`bg-pitch-800 rounded-2xl border p-4 ${match.is_finished ? 'border-emerald-900/40 opacity-70' : 'border-pitch-700'}`}>
         {match.match_date && (
           <p className="text-center text-xs text-zinc-600 mb-2">{formatMatchDate(match.match_date)}</p>
         )}
+
+        {/* Score inputs */}
         <div className="flex items-center gap-2 mb-3">
           <div className="flex-1 flex items-center justify-end gap-1.5 min-w-0 text-right">
             <span className="text-xs font-medium text-white leading-snug">{match.home_team?.name}</span>
@@ -187,12 +211,44 @@ export default function AdminPage() {
             <span className="text-xs font-medium text-white leading-snug">{match.away_team?.name}</span>
           </div>
         </div>
-        <button onClick={() => saveResult(match.id)} disabled={saving === match.id || locked}
+
+        {/* Who advanced selector (elimination rounds only) */}
+        {isElim && (
+          <div className="mb-3">
+            <p className="text-xs text-zinc-500 text-center mb-1.5">¿Quién avanzó?</p>
+            <div className="flex gap-2">
+              <button
+                disabled={locked}
+                onClick={() => setResults(rs => ({ ...rs, [match.id]: { ...r, winner: 'home' } }))}
+                className={`flex-1 py-2 rounded-xl text-xs font-medium border transition-colors truncate ${
+                  r.winner === 'home'
+                    ? 'bg-gold-500 text-black border-gold-500'
+                    : 'bg-pitch-900 border-pitch-600 text-zinc-400 hover:text-white hover:border-gold-600'
+                } disabled:opacity-40 disabled:cursor-not-allowed`}
+              >
+                {match.home_team?.flag} {match.home_team?.name}
+              </button>
+              <button
+                disabled={locked}
+                onClick={() => setResults(rs => ({ ...rs, [match.id]: { ...r, winner: 'away' } }))}
+                className={`flex-1 py-2 rounded-xl text-xs font-medium border transition-colors truncate ${
+                  r.winner === 'away'
+                    ? 'bg-gold-500 text-black border-gold-500'
+                    : 'bg-pitch-900 border-pitch-600 text-zinc-400 hover:text-white hover:border-gold-600'
+                } disabled:opacity-40 disabled:cursor-not-allowed`}
+              >
+                {match.away_team?.flag} {match.away_team?.name}
+              </button>
+            </div>
+          </div>
+        )}
+
+        <button onClick={() => saveResult(match.id)} disabled={isSaveDisabled}
           className={`w-full py-2 rounded-xl text-sm font-semibold transition-colors disabled:cursor-not-allowed ${
             locked
               ? 'bg-pitch-900 text-zinc-700 border border-pitch-700'
               : match.is_finished
-              ? 'bg-emerald-900/40 text-emerald-400 border border-emerald-900/50 hover:bg-emerald-900/60'
+              ? 'bg-emerald-900/40 text-emerald-400 border border-emerald-900/50 hover:bg-emerald-900/60 disabled:opacity-50'
               : 'bg-gold-500 hover:bg-gold-400 text-black disabled:opacity-50'
           }`}>
           {saving === match.id ? 'Guardando...' : locked ? '🔒 Bloqueado (+24hs)' : match.is_finished ? '✓ Actualizar resultado' : 'Guardar resultado'}

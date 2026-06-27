@@ -3,13 +3,13 @@ import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase-client'
 import Nav from '@/components/Nav'
 import { useRouter } from 'next/navigation'
-import { STAGES, formatMatchDate, formatMatchTime, formatCalendarDay, stageLabel } from '@/lib/stages'
+import { STAGES, formatMatchDate, formatMatchTime, formatCalendarDay, stageLabel, isEliminationStage } from '@/lib/stages'
 import type { Match, Prediction, Team } from '@/lib/types'
 
 type MatchWithTeams = Match & { home_team: Team; away_team: Team }
 type DayGroup = { key: string; label: string; matches: MatchWithTeams[] }
-type PredEntry = { home: string; away: string; points?: number | null }
-type MatchPred = { display_name: string; home_score: number; away_score: number; points: number | null }
+type PredEntry = { home: string; away: string; result?: string; advances?: string; points?: number | null }
+type MatchPred = { display_name: string; home_score: number | null; away_score: number | null; result_prediction: string | null; advances_prediction: string | null; points: number | null }
 
 export default function PredictionsPage() {
   const supabase = createClient()
@@ -56,7 +56,16 @@ export default function PredictionsPage() {
         const predMap: Record<number, PredEntry> = {}
         const locked = new Set<number>()
         for (const p of (predData as Prediction[]) ?? []) {
-          predMap[p.match_id] = { home: String(p.home_score), away: String(p.away_score), points: p.points }
+          if (p.result_prediction != null) {
+            predMap[p.match_id] = {
+              home: '', away: '',
+              result: p.result_prediction,
+              advances: p.advances_prediction ?? '',
+              points: p.points,
+            }
+          } else {
+            predMap[p.match_id] = { home: String(p.home_score ?? ''), away: String(p.away_score ?? ''), points: p.points }
+          }
           locked.add(p.match_id)
         }
         setPredictions(predMap)
@@ -88,10 +97,19 @@ export default function PredictionsPage() {
             .eq('match_id', matchId)
             .maybeSingle()
             .then(({ data }) => {
-              if (data) setPredictions(prev => ({
-                ...prev,
-                [matchId]: { home: String(data.home_score), away: String(data.away_score), points: data.points }
-              }))
+              if (data) {
+                if (data.result_prediction != null) {
+                  setPredictions(prev => ({
+                    ...prev,
+                    [matchId]: { home: '', away: '', result: data.result_prediction, advances: data.advances_prediction ?? '', points: data.points }
+                  }))
+                } else {
+                  setPredictions(prev => ({
+                    ...prev,
+                    [matchId]: { home: String(data.home_score ?? ''), away: String(data.away_score ?? ''), points: data.points }
+                  }))
+                }
+              }
             })
         })
       .subscribe()
@@ -120,6 +138,8 @@ export default function PredictionsPage() {
         display_name: profileMap[p.user_id] ?? 'Usuario',
         home_score: p.home_score,
         away_score: p.away_score,
+        result_prediction: p.result_prediction,
+        advances_prediction: p.advances_prediction,
         points: p.points,
       })).sort((a: MatchPred, b: MatchPred) => {
         if (a.points === null && b.points !== null) return 1
@@ -193,32 +213,78 @@ export default function PredictionsPage() {
 
   const saveMatch = async (matchId: number) => {
     if (!userId) return
+    const match = matches.find(m => m.id === matchId)
+    if (!match) return
     const v = predictions[matchId]
-    if (!v || v.home === '' || v.away === '') return
-    setSavingMatch(matchId)
-    setSaveError(e => ({ ...e, [matchId]: '' }))
-    const { error } = await supabase.from('predictions').upsert({
-      user_id: userId,
-      match_id: matchId,
-      home_score: Number(v.home),
-      away_score: Number(v.away),
-    }, { onConflict: 'user_id,match_id' })
-    setSavingMatch(null)
-    if (error) {
-      setSaveError(e => ({ ...e, [matchId]: error.message }))
-      return
+    const isElim = isEliminationStage(match.stage)
+
+    if (isElim) {
+      if (!v?.result || v.result === '') return
+      if (v.result === 'X' && (!v.advances || v.advances === '')) return
+      setSavingMatch(matchId)
+      setSaveError(e => ({ ...e, [matchId]: '' }))
+      const { error } = await supabase.from('predictions').upsert({
+        user_id: userId,
+        match_id: matchId,
+        home_score: null,
+        away_score: null,
+        result_prediction: v.result,
+        advances_prediction: v.result === 'X' ? (v.advances || null) : null,
+      }, { onConflict: 'user_id,match_id' })
+      setSavingMatch(null)
+      if (error) { setSaveError(e => ({ ...e, [matchId]: error.message })); return }
+      setSavedIds(prev => new Set([...prev, matchId]))
+      setSavedMatch(matchId)
+      setTimeout(() => setSavedMatch(m => m === matchId ? null : m), 2000)
+    } else {
+      if (!v || v.home === '' || v.away === '') return
+      setSavingMatch(matchId)
+      setSaveError(e => ({ ...e, [matchId]: '' }))
+      const { error } = await supabase.from('predictions').upsert({
+        user_id: userId,
+        match_id: matchId,
+        home_score: Number(v.home),
+        away_score: Number(v.away),
+      }, { onConflict: 'user_id,match_id' })
+      setSavingMatch(null)
+      if (error) { setSaveError(e => ({ ...e, [matchId]: error.message })); return }
+      setSavedIds(prev => new Set([...prev, matchId]))
+      setSavedMatch(matchId)
+      setTimeout(() => setSavedMatch(m => m === matchId ? null : m), 2000)
     }
-    setSavedIds(prev => new Set([...prev, matchId]))
-    setSavedMatch(matchId)
-    setTimeout(() => setSavedMatch(m => m === matchId ? null : m), 2000)
+  }
+
+  const formatEliminationPred = (p: MatchPred, match: MatchWithTeams) => {
+    if (!p.result_prediction) return '—'
+    if (p.result_prediction === '1') return `1 · ${match.home_team?.name}`
+    if (p.result_prediction === '2') return `2 · ${match.away_team?.name}`
+    const advances = p.advances_prediction === 'home' ? match.home_team?.name : match.away_team?.name
+    return `X → ${advances}`
+  }
+
+  const formatMyEliminationPred = (pred: PredEntry, match: MatchWithTeams) => {
+    if (!pred.result || pred.result === '') return null
+    if (pred.result === '1') return `1 · ${match.home_team?.name}`
+    if (pred.result === '2') return `2 · ${match.away_team?.name}`
+    const advances = pred.advances === 'home' ? match.home_team?.name : match.away_team?.name
+    return `X → ${advances}`
   }
 
   const renderCard = (match: MatchWithTeams, calendarView = false) => {
     const pred = predictions[match.id] ?? { home: '', away: '' }
     const locked = isLocked(match)
     const live = isLive(match)
+    const isElim = isEliminationStage(match.stage)
     const timeLabel = calendarView ? formatMatchTime(match.match_date) : formatMatchDate(match.match_date)
-    const hasPred = pred.home !== '' && pred.away !== ''
+    const hasPred = isElim
+      ? Boolean(pred.result && pred.result !== '')
+      : (pred.home !== '' && pred.away !== '')
+
+    const isSaveDisabled = savingMatch === match.id || (
+      isElim
+        ? !pred.result || pred.result === '' || (pred.result === 'X' && (!pred.advances || pred.advances === ''))
+        : pred.home === '' || pred.away === ''
+    )
 
     return (
       <div key={match.id}
@@ -259,7 +325,7 @@ export default function PredictionsPage() {
             <span className="text-xl flex-none">{match.home_team?.flag}</span>
           </div>
 
-          {/* Score display */}
+          {/* Score / prediction input */}
           <div className="flex items-center gap-1 flex-none">
             {match.is_finished ? (
               <>
@@ -271,6 +337,33 @@ export default function PredictionsPage() {
                   {match.away_score}
                 </div>
               </>
+            ) : isElim ? (
+              /* 1 / X / 2 buttons for elimination rounds */
+              <div className="flex items-center gap-1">
+                {(['1', 'X', '2'] as const).map(result => (
+                  <button
+                    key={result}
+                    disabled={locked}
+                    onClick={() => !locked && setPredictions(p => ({
+                      ...p,
+                      [match.id]: {
+                        ...pred,
+                        result,
+                        advances: result !== 'X' ? '' : (pred.advances ?? ''),
+                      }
+                    }))}
+                    className={`w-10 h-11 rounded-xl text-sm font-bold border transition-colors ${
+                      pred.result === result
+                        ? 'bg-gold-500 text-black border-gold-500'
+                        : locked
+                        ? 'bg-pitch-900 border-pitch-600 text-zinc-600 cursor-not-allowed'
+                        : 'bg-pitch-900 border-pitch-600 text-zinc-400 hover:border-gold-600 hover:text-white'
+                    }`}
+                  >
+                    {result}
+                  </button>
+                ))}
+              </div>
             ) : (
               <>
                 <input type="number" min="0" max="20" value={pred.home} disabled={locked}
@@ -301,12 +394,55 @@ export default function PredictionsPage() {
           </div>
         </div>
 
+        {/* Who advances selector (elimination, not finished, not locked, X selected) */}
+        {isElim && !match.is_finished && !locked && pred.result === 'X' && (
+          <div className="px-3 pb-2">
+            <p className="text-xs text-zinc-500 text-center mb-1.5">¿Quién avanza?</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setPredictions(p => ({ ...p, [match.id]: { ...pred, advances: 'home' } }))}
+                className={`flex-1 py-1.5 rounded-xl text-xs font-medium border transition-colors truncate ${
+                  pred.advances === 'home'
+                    ? 'bg-gold-500 text-black border-gold-500'
+                    : 'bg-pitch-900 border-pitch-600 text-zinc-400 hover:border-gold-500 hover:text-white'
+                }`}
+              >
+                {match.home_team?.flag} {match.home_team?.name}
+              </button>
+              <button
+                onClick={() => setPredictions(p => ({ ...p, [match.id]: { ...pred, advances: 'away' } }))}
+                className={`flex-1 py-1.5 rounded-xl text-xs font-medium border transition-colors truncate ${
+                  pred.advances === 'away'
+                    ? 'bg-gold-500 text-black border-gold-500'
+                    : 'bg-pitch-900 border-pitch-600 text-zinc-400 hover:border-gold-500 hover:text-white'
+                }`}
+              >
+                {match.away_team?.flag} {match.away_team?.name}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Who advanced — shown on finished elimination matches that ended in a draw */}
+        {isElim && match.is_finished && match.winner && match.home_score === match.away_score && (
+          <p className="text-center text-xs text-zinc-500 -mt-1 pb-1">
+            Avanza {match.winner === 'home'
+              ? `${match.home_team?.flag} ${match.home_team?.name}`
+              : `${match.away_team?.flag} ${match.away_team?.name}`}
+          </p>
+        )}
+
         {/* Bottom status row */}
         {match.is_finished ? (
           <div className="px-3 pb-3 space-y-2">
             {hasPred ? (
               <p className="text-center text-xs">
-                <span className="text-zinc-600">Tu pronóstico: {pred.home} - {pred.away}</span>
+                <span className="text-zinc-600">
+                  Tu pronóstico:{' '}
+                  {isElim
+                    ? formatMyEliminationPred(pred, match)
+                    : `${pred.home} - ${pred.away}`}
+                </span>
                 {pred.points != null && (
                   <span className={` · font-semibold ${
                     pred.points >= 3 ? 'text-gold-400' :
@@ -338,7 +474,7 @@ export default function PredictionsPage() {
             )}
             <button
               onClick={() => saveMatch(match.id)}
-              disabled={savingMatch === match.id || pred.home === '' || pred.away === ''}
+              disabled={isSaveDisabled}
               className={`w-full py-2 rounded-xl text-sm font-bold transition-colors disabled:opacity-40 ${
                 savedMatch === match.id
                   ? 'bg-emerald-600 text-white'
@@ -514,6 +650,13 @@ export default function PredictionsPage() {
                   </span>
                   <span className="text-white font-medium">{viewingMatch.away_team?.name} {viewingMatch.away_team?.flag}</span>
                 </div>
+                {isEliminationStage(viewingMatch.stage) && viewingMatch.winner && viewingMatch.home_score === viewingMatch.away_score && (
+                  <p className="text-center text-xs text-zinc-500 mt-1">
+                    Avanza {viewingMatch.winner === 'home'
+                      ? `${viewingMatch.home_team?.flag} ${viewingMatch.home_team?.name}`
+                      : `${viewingMatch.away_team?.flag} ${viewingMatch.away_team?.name}`}
+                  </p>
+                )}
               </div>
             )}
 
@@ -529,7 +672,9 @@ export default function PredictionsPage() {
                     <span className="text-sm text-white truncate flex-1 mr-3">{p.display_name}</span>
                     <div className="flex items-center gap-3 flex-none">
                       <span className="text-sm font-bold text-zinc-300">
-                        {p.home_score} - {p.away_score}
+                        {viewingMatch && isEliminationStage(viewingMatch.stage)
+                          ? formatEliminationPred(p, viewingMatch)
+                          : `${p.home_score} - ${p.away_score}`}
                       </span>
                       {p.points != null ? (
                         <span className={`text-xs font-semibold w-10 text-right ${

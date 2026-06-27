@@ -1,7 +1,23 @@
 import type { Match, Prediction } from './types'
+import { isEliminationStage } from './stages'
 
 export function calculatePoints(match: Match, prediction: Prediction): number {
-  if (!match.is_finished || match.home_score === null || match.away_score === null) return 0
+  if (!match.is_finished) return 0
+
+  if (isEliminationStage(match.stage)) {
+    if (!prediction.result_prediction || match.home_score === null || match.away_score === null) return 0
+    const actual = match.home_score > match.away_score ? '1' : match.away_score > match.home_score ? '2' : 'X'
+    if (prediction.result_prediction !== actual) return 0
+    let pts = 2
+    if (actual === 'X' && prediction.advances_prediction && match.winner) {
+      if (prediction.advances_prediction === match.winner) pts += 1
+    }
+    return pts
+  }
+
+  // Group stage
+  if (match.home_score === null || match.away_score === null) return 0
+  if (prediction.home_score === null || prediction.away_score === null) return 0
 
   const exactScore =
     prediction.home_score === match.home_score &&
@@ -10,19 +26,8 @@ export function calculatePoints(match: Match, prediction: Prediction): number {
   const correctResult = getResult(prediction.home_score, prediction.away_score) ===
     getResult(match.home_score, match.away_score)
 
-  const pointsMap: Record<string, { correct: number; exact: number }> = {
-    group:        { correct: 1, exact: 3 },
-    round_of_32:  { correct: 2, exact: 5 },
-    round_of_16:  { correct: 2, exact: 5 },
-    quarter:      { correct: 3, exact: 6 },
-    semi:         { correct: 3, exact: 6 },
-    final:        { correct: 4, exact: 8 },
-  }
-
-  const stage = pointsMap[match.stage] ?? { correct: 1, exact: 3 }
-
-  if (exactScore) return stage.exact
-  if (correctResult) return stage.correct
+  if (exactScore) return 3
+  if (correctResult) return 1
   return 0
 }
 

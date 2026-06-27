@@ -1,3 +1,9 @@
+export const ELIMINATION_STAGES = new Set(['round_of_32', 'round_of_16', 'quarter', 'semi', 'final'])
+
+export function isEliminationStage(stage: string): boolean {
+  return ELIMINATION_STAGES.has(stage)
+}
+
 export const STAGES = [
   { key: 'group', label: 'Grupos' },
   { key: 'round_of_32', label: '16avos' },
