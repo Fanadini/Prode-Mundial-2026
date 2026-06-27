@@ -115,19 +115,21 @@ export default function AdminPage() {
 
     const { data: preds } = await supabase.from('predictions').select('*').eq('match_id', matchId)
 
+    const getResult = (h: number, a: number) => h > a ? 'home' : a > h ? 'away' : 'draw'
     for (const pred of preds ?? []) {
       let points = 0
       if (isElim) {
-        const actual90 = home_score > away_score ? '1' : away_score > home_score ? '2' : 'X'
-        if (pred.result_prediction === actual90) {
+        const actual90 = getResult(home_score, away_score)
+        const pred90 = pred.home_score != null && pred.away_score != null
+          ? getResult(pred.home_score, pred.away_score) : null
+        if (pred90 === actual90) {
           points = 2
-          if (actual90 === 'X' && pred.advances_prediction && winner) {
+          if (actual90 === 'draw' && pred.advances_prediction && winner) {
             if (pred.advances_prediction === winner) points += 1
           }
         }
       } else {
         const exactScore = pred.home_score === home_score && pred.away_score === away_score
-        const getResult = (h: number, a: number) => h > a ? 'home' : a > h ? 'away' : 'draw'
         const correctResult = getResult(pred.home_score, pred.away_score) === getResult(home_score, away_score)
         points = exactScore ? 3 : correctResult ? 1 : 0
       }

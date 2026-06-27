@@ -8,8 +8,8 @@ import type { Match, Prediction, Team } from '@/lib/types'
 
 type MatchWithTeams = Match & { home_team: Team; away_team: Team }
 type DayGroup = { key: string; label: string; matches: MatchWithTeams[] }
-type PredEntry = { home: string; away: string; result?: string; advances?: string; points?: number | null }
-type MatchPred = { display_name: string; home_score: number | null; away_score: number | null; result_prediction: string | null; advances_prediction: string | null; points: number | null }
+type PredEntry = { home: string; away: string; advances?: string; points?: number | null }
+type MatchPred = { display_name: string; home_score: number | null; away_score: number | null; advances_prediction: string | null; points: number | null }
 
 export default function PredictionsPage() {
   const supabase = createClient()
@@ -56,15 +56,11 @@ export default function PredictionsPage() {
         const predMap: Record<number, PredEntry> = {}
         const locked = new Set<number>()
         for (const p of (predData as Prediction[]) ?? []) {
-          if (p.result_prediction != null) {
-            predMap[p.match_id] = {
-              home: '', away: '',
-              result: p.result_prediction,
-              advances: p.advances_prediction ?? '',
-              points: p.points,
-            }
-          } else {
-            predMap[p.match_id] = { home: String(p.home_score ?? ''), away: String(p.away_score ?? ''), points: p.points }
+          predMap[p.match_id] = {
+            home: String(p.home_score ?? ''),
+            away: String(p.away_score ?? ''),
+            advances: p.advances_prediction ?? '',
+            points: p.points,
           }
           locked.add(p.match_id)
         }
@@ -97,19 +93,15 @@ export default function PredictionsPage() {
             .eq('match_id', matchId)
             .maybeSingle()
             .then(({ data }) => {
-              if (data) {
-                if (data.result_prediction != null) {
-                  setPredictions(prev => ({
-                    ...prev,
-                    [matchId]: { home: '', away: '', result: data.result_prediction, advances: data.advances_prediction ?? '', points: data.points }
-                  }))
-                } else {
-                  setPredictions(prev => ({
-                    ...prev,
-                    [matchId]: { home: String(data.home_score ?? ''), away: String(data.away_score ?? ''), points: data.points }
-                  }))
+              if (data) setPredictions(prev => ({
+                ...prev,
+                [matchId]: {
+                  home: String(data.home_score ?? ''),
+                  away: String(data.away_score ?? ''),
+                  advances: data.advances_prediction ?? '',
+                  points: data.points,
                 }
-              }
+              }))
             })
         })
       .subscribe()
@@ -138,7 +130,6 @@ export default function PredictionsPage() {
         display_name: profileMap[p.user_id] ?? 'Usuario',
         home_score: p.home_score,
         away_score: p.away_score,
-        result_prediction: p.result_prediction,
         advances_prediction: p.advances_prediction,
         points: p.points,
       })).sort((a: MatchPred, b: MatchPred) => {
@@ -216,58 +207,25 @@ export default function PredictionsPage() {
     const match = matches.find(m => m.id === matchId)
     if (!match) return
     const v = predictions[matchId]
+    if (!v || v.home === '' || v.away === '') return
     const isElim = isEliminationStage(match.stage)
+    const isDraw = v.home === v.away
+    if (isElim && isDraw && (!v.advances || v.advances === '')) return
 
-    if (isElim) {
-      if (!v?.result || v.result === '') return
-      if (v.result === 'X' && (!v.advances || v.advances === '')) return
-      setSavingMatch(matchId)
-      setSaveError(e => ({ ...e, [matchId]: '' }))
-      const { error } = await supabase.from('predictions').upsert({
-        user_id: userId,
-        match_id: matchId,
-        home_score: null,
-        away_score: null,
-        result_prediction: v.result,
-        advances_prediction: v.result === 'X' ? (v.advances || null) : null,
-      }, { onConflict: 'user_id,match_id' })
-      setSavingMatch(null)
-      if (error) { setSaveError(e => ({ ...e, [matchId]: error.message })); return }
-      setSavedIds(prev => new Set([...prev, matchId]))
-      setSavedMatch(matchId)
-      setTimeout(() => setSavedMatch(m => m === matchId ? null : m), 2000)
-    } else {
-      if (!v || v.home === '' || v.away === '') return
-      setSavingMatch(matchId)
-      setSaveError(e => ({ ...e, [matchId]: '' }))
-      const { error } = await supabase.from('predictions').upsert({
-        user_id: userId,
-        match_id: matchId,
-        home_score: Number(v.home),
-        away_score: Number(v.away),
-      }, { onConflict: 'user_id,match_id' })
-      setSavingMatch(null)
-      if (error) { setSaveError(e => ({ ...e, [matchId]: error.message })); return }
-      setSavedIds(prev => new Set([...prev, matchId]))
-      setSavedMatch(matchId)
-      setTimeout(() => setSavedMatch(m => m === matchId ? null : m), 2000)
-    }
-  }
-
-  const formatEliminationPred = (p: MatchPred, match: MatchWithTeams) => {
-    if (!p.result_prediction) return '—'
-    if (p.result_prediction === '1') return `1 · ${match.home_team?.name}`
-    if (p.result_prediction === '2') return `2 · ${match.away_team?.name}`
-    const advances = p.advances_prediction === 'home' ? match.home_team?.name : match.away_team?.name
-    return `X → ${advances}`
-  }
-
-  const formatMyEliminationPred = (pred: PredEntry, match: MatchWithTeams) => {
-    if (!pred.result || pred.result === '') return null
-    if (pred.result === '1') return `1 · ${match.home_team?.name}`
-    if (pred.result === '2') return `2 · ${match.away_team?.name}`
-    const advances = pred.advances === 'home' ? match.home_team?.name : match.away_team?.name
-    return `X → ${advances}`
+    setSavingMatch(matchId)
+    setSaveError(e => ({ ...e, [matchId]: '' }))
+    const { error } = await supabase.from('predictions').upsert({
+      user_id: userId,
+      match_id: matchId,
+      home_score: Number(v.home),
+      away_score: Number(v.away),
+      advances_prediction: (isElim && isDraw) ? (v.advances || null) : null,
+    }, { onConflict: 'user_id,match_id' })
+    setSavingMatch(null)
+    if (error) { setSaveError(e => ({ ...e, [matchId]: error.message })); return }
+    setSavedIds(prev => new Set([...prev, matchId]))
+    setSavedMatch(matchId)
+    setTimeout(() => setSavedMatch(m => m === matchId ? null : m), 2000)
   }
 
   const renderCard = (match: MatchWithTeams, calendarView = false) => {
@@ -276,15 +234,13 @@ export default function PredictionsPage() {
     const live = isLive(match)
     const isElim = isEliminationStage(match.stage)
     const timeLabel = calendarView ? formatMatchTime(match.match_date) : formatMatchDate(match.match_date)
-    const hasPred = isElim
-      ? Boolean(pred.result && pred.result !== '')
-      : (pred.home !== '' && pred.away !== '')
+    const hasPred = pred.home !== '' && pred.away !== ''
 
-    const isSaveDisabled = savingMatch === match.id || (
-      isElim
-        ? !pred.result || pred.result === '' || (pred.result === 'X' && (!pred.advances || pred.advances === ''))
-        : pred.home === '' || pred.away === ''
-    )
+    // For elimination: draw prediction requires advances_prediction
+    const isPredDraw = pred.home !== '' && pred.home === pred.away
+    const isSaveDisabled = savingMatch === match.id ||
+      pred.home === '' || pred.away === '' ||
+      (isElim && isPredDraw && (!pred.advances || pred.advances === ''))
 
     return (
       <div key={match.id}
@@ -325,7 +281,7 @@ export default function PredictionsPage() {
             <span className="text-xl flex-none">{match.home_team?.flag}</span>
           </div>
 
-          {/* Score / prediction input */}
+          {/* Score display */}
           <div className="flex items-center gap-1 flex-none">
             {match.is_finished ? (
               <>
@@ -337,37 +293,13 @@ export default function PredictionsPage() {
                   {match.away_score}
                 </div>
               </>
-            ) : isElim ? (
-              /* 1 / X / 2 buttons for elimination rounds */
-              <div className="flex items-center gap-1">
-                {(['1', 'X', '2'] as const).map(result => (
-                  <button
-                    key={result}
-                    disabled={locked}
-                    onClick={() => !locked && setPredictions(p => ({
-                      ...p,
-                      [match.id]: {
-                        ...pred,
-                        result,
-                        advances: result !== 'X' ? '' : (pred.advances ?? ''),
-                      }
-                    }))}
-                    className={`w-10 h-11 rounded-xl text-sm font-bold border transition-colors ${
-                      pred.result === result
-                        ? 'bg-gold-500 text-black border-gold-500'
-                        : locked
-                        ? 'bg-pitch-900 border-pitch-600 text-zinc-600 cursor-not-allowed'
-                        : 'bg-pitch-900 border-pitch-600 text-zinc-400 hover:border-gold-600 hover:text-white'
-                    }`}
-                  >
-                    {result}
-                  </button>
-                ))}
-              </div>
             ) : (
               <>
                 <input type="number" min="0" max="20" value={pred.home} disabled={locked}
-                  onChange={e => setPredictions(p => ({ ...p, [match.id]: { ...pred, home: e.target.value } }))}
+                  onChange={e => setPredictions(p => ({
+                    ...p,
+                    [match.id]: { ...pred, home: e.target.value, advances: e.target.value !== pred.away ? '' : pred.advances }
+                  }))}
                   className={`w-11 h-11 text-center text-lg font-bold rounded-xl border transition-colors ${
                     locked
                       ? 'bg-pitch-900 border-pitch-600 text-zinc-500'
@@ -376,7 +308,10 @@ export default function PredictionsPage() {
                 />
                 <span className="text-zinc-700 font-bold text-sm">:</span>
                 <input type="number" min="0" max="20" value={pred.away} disabled={locked}
-                  onChange={e => setPredictions(p => ({ ...p, [match.id]: { ...pred, away: e.target.value } }))}
+                  onChange={e => setPredictions(p => ({
+                    ...p,
+                    [match.id]: { ...pred, away: e.target.value, advances: pred.home !== e.target.value ? '' : pred.advances }
+                  }))}
                   className={`w-11 h-11 text-center text-lg font-bold rounded-xl border transition-colors ${
                     locked
                       ? 'bg-pitch-900 border-pitch-600 text-zinc-500'
@@ -394,10 +329,10 @@ export default function PredictionsPage() {
           </div>
         </div>
 
-        {/* Who advances selector (elimination, not finished, not locked, X selected) */}
-        {isElim && !match.is_finished && !locked && pred.result === 'X' && (
+        {/* Penalties selector — elimination + draw predicted + not finished + not locked */}
+        {isElim && !match.is_finished && !locked && isPredDraw && (
           <div className="px-3 pb-2">
-            <p className="text-xs text-zinc-500 text-center mb-1.5">¿Quién avanza?</p>
+            <p className="text-xs text-zinc-500 text-center mb-1.5">¿Quién gana los penales?</p>
             <div className="flex gap-2">
               <button
                 onClick={() => setPredictions(p => ({ ...p, [match.id]: { ...pred, advances: 'home' } }))}
@@ -423,10 +358,10 @@ export default function PredictionsPage() {
           </div>
         )}
 
-        {/* Who advanced — shown on finished elimination matches that ended in a draw */}
+        {/* Who advanced — show on finished elimination draws */}
         {isElim && match.is_finished && match.winner && match.home_score === match.away_score && (
           <p className="text-center text-xs text-zinc-500 -mt-1 pb-1">
-            Avanza {match.winner === 'home'
+            Penales: avanza {match.winner === 'home'
               ? `${match.home_team?.flag} ${match.home_team?.name}`
               : `${match.away_team?.flag} ${match.away_team?.name}`}
           </p>
@@ -438,10 +373,10 @@ export default function PredictionsPage() {
             {hasPred ? (
               <p className="text-center text-xs">
                 <span className="text-zinc-600">
-                  Tu pronóstico:{' '}
-                  {isElim
-                    ? formatMyEliminationPred(pred, match)
-                    : `${pred.home} - ${pred.away}`}
+                  Tu pronóstico: {pred.home} - {pred.away}
+                  {isElim && pred.home === pred.away && pred.advances && (
+                    <> · {pred.advances === 'home' ? match.home_team?.name : match.away_team?.name} por penales</>
+                  )}
                 </span>
                 {pred.points != null && (
                   <span className={` · font-semibold ${
@@ -652,7 +587,7 @@ export default function PredictionsPage() {
                 </div>
                 {isEliminationStage(viewingMatch.stage) && viewingMatch.winner && viewingMatch.home_score === viewingMatch.away_score && (
                   <p className="text-center text-xs text-zinc-500 mt-1">
-                    Avanza {viewingMatch.winner === 'home'
+                    Penales: avanza {viewingMatch.winner === 'home'
                       ? `${viewingMatch.home_team?.flag} ${viewingMatch.home_team?.name}`
                       : `${viewingMatch.away_team?.flag} ${viewingMatch.away_team?.name}`}
                   </p>
@@ -672,9 +607,13 @@ export default function PredictionsPage() {
                     <span className="text-sm text-white truncate flex-1 mr-3">{p.display_name}</span>
                     <div className="flex items-center gap-3 flex-none">
                       <span className="text-sm font-bold text-zinc-300">
-                        {viewingMatch && isEliminationStage(viewingMatch.stage)
-                          ? formatEliminationPred(p, viewingMatch)
-                          : `${p.home_score} - ${p.away_score}`}
+                        {p.home_score} - {p.away_score}
+                        {viewingMatch && isEliminationStage(viewingMatch.stage) && p.home_score === p.away_score && p.advances_prediction && (
+                          <span className="text-zinc-500 font-normal text-xs">
+                            {' '}·{' '}
+                            {p.advances_prediction === 'home' ? viewingMatch.home_team?.name : viewingMatch.away_team?.name}
+                          </span>
+                        )}
                       </span>
                       {p.points != null ? (
                         <span className={`text-xs font-semibold w-10 text-right ${
