@@ -5,6 +5,8 @@ import Nav from '@/components/Nav'
 import { useRouter } from 'next/navigation'
 import type { Team } from '@/lib/types'
 
+const SPECIALS_LOCKED = true
+
 export default function EspecialesPage() {
   const supabase = createClient()
   const [teams, setTeams] = useState<Team[]>([])
@@ -52,6 +54,8 @@ export default function EspecialesPage() {
     setTimeout(() => setSaved(false), 2000)
   }
 
+  const locked = SPECIALS_LOCKED && !isAdmin
+
   return (
     <div className="bg-pitch-950 min-h-screen">
       <Nav isAdmin={isAdmin} isScorer={isScorer} />
@@ -59,8 +63,14 @@ export default function EspecialesPage() {
         <h1 className="text-xl font-bold text-white mb-2">Especiales</h1>
         <p className="text-zinc-500 text-sm mb-6">Pronósticos globales del torneo</p>
 
+        {locked && (
+          <div className="mb-5 bg-pitch-800 border border-pitch-700 rounded-2xl px-4 py-3 text-sm text-zinc-400 text-center">
+            🔒 Las predicciones especiales están cerradas
+          </div>
+        )}
+
         <div className="space-y-4">
-          <div className="bg-pitch-800 rounded-2xl border border-pitch-700 p-5">
+          <div className={`bg-pitch-800 rounded-2xl border border-pitch-700 p-5 ${locked ? 'opacity-60' : ''}`}>
             <label className="block text-sm font-semibold text-white mb-1">
               🏆 Campeón del mundo
             </label>
@@ -68,7 +78,8 @@ export default function EspecialesPage() {
             <select
               value={championId}
               onChange={e => setChampionId(e.target.value)}
-              className="w-full bg-pitch-900 border border-pitch-600 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-gold-500"
+              disabled={locked}
+              className="w-full bg-pitch-900 border border-pitch-600 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-gold-500 disabled:cursor-not-allowed"
             >
               <option value="">— Elegí un equipo —</option>
               {teams.map(t => (
@@ -77,7 +88,7 @@ export default function EspecialesPage() {
             </select>
           </div>
 
-          <div className="bg-pitch-800 rounded-2xl border border-pitch-700 p-5">
+          <div className={`bg-pitch-800 rounded-2xl border border-pitch-700 p-5 ${locked ? 'opacity-60' : ''}`}>
             <label className="block text-sm font-semibold text-white mb-1">
               ⚽ Goleador del torneo
             </label>
@@ -87,18 +98,21 @@ export default function EspecialesPage() {
               value={topScorer}
               onChange={e => setTopScorer(e.target.value)}
               placeholder="Nombre del jugador"
-              className="w-full bg-pitch-900 border border-pitch-600 rounded-xl px-4 py-3 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-gold-500"
+              disabled={locked}
+              className="w-full bg-pitch-900 border border-pitch-600 rounded-xl px-4 py-3 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-gold-500 disabled:cursor-not-allowed"
             />
           </div>
         </div>
 
-        <button
-          onClick={save}
-          disabled={saving}
-          className="mt-6 w-full bg-gold-500 hover:bg-gold-400 text-black font-bold py-3.5 rounded-2xl transition-colors disabled:opacity-50"
-        >
-          {saved ? '✓ Guardado!' : saving ? 'Guardando...' : 'Guardar'}
-        </button>
+        {!locked && (
+          <button
+            onClick={save}
+            disabled={saving}
+            className="mt-6 w-full bg-gold-500 hover:bg-gold-400 text-black font-bold py-3.5 rounded-2xl transition-colors disabled:opacity-50"
+          >
+            {saved ? '✓ Guardado!' : saving ? 'Guardando...' : 'Guardar'}
+          </button>
+        )}
       </main>
     </div>
   )
