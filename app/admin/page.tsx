@@ -164,6 +164,11 @@ export default function AdminPage() {
     setUsers(us => us.map(u => u.id === userId ? { ...u, is_scorer: !current } : u))
   }
 
+  const toggleHidden = async (userId: string, current: boolean) => {
+    await supabase.from('profiles').update({ is_hidden: !current }).eq('id', userId)
+    setUsers(us => us.map(u => u.id === userId ? { ...u, is_hidden: !current } : u))
+  }
+
   const deleteUser = async (userId: string, name: string) => {
     if (!confirm(`¿Borrar a "${name}"?\nSe eliminan todos sus pronósticos. Esta acción no se puede deshacer.`)) return
     const { error } = await supabase.from('profiles').delete().eq('id', userId)
@@ -364,11 +369,13 @@ export default function AdminPage() {
           <div className="space-y-3">
             <p className="text-xs text-zinc-600 mb-4">
               Podés editar nombres, dar/quitar permisos de admin y borrar usuarios.
-              Borrar un usuario elimina todos sus pronósticos.
+              Borrar un usuario elimina todos sus pronósticos. Los usuarios ocultos no aparecen en el ranking.
             </p>
             {users.map(user => (
               <div key={user.id}
-                className={`bg-pitch-800 rounded-2xl border p-4 ${user.id === myId ? 'border-gold-600/40' : 'border-pitch-700'}`}>
+                className={`bg-pitch-800 rounded-2xl border p-4 transition-opacity ${
+                  user.is_hidden ? 'opacity-50 border-pitch-600' : user.id === myId ? 'border-gold-600/40' : 'border-pitch-700'
+                }`}>
                 <div className="flex items-center gap-3">
                   <div className="flex-1 min-w-0">
                     <input
@@ -421,6 +428,10 @@ export default function AdminPage() {
                     <span className="text-xs text-zinc-600">Sin pronósticos</span>
                   )}
 
+                  {user.is_hidden && (
+                    <span className="text-xs text-zinc-500 border border-pitch-600 px-2 py-0.5 rounded-full">Oculto</span>
+                  )}
+
                   {user.id === myId && (
                     <span className="text-xs text-zinc-600">(vos)</span>
                   )}
@@ -428,12 +439,24 @@ export default function AdminPage() {
                   <div className="flex-1" />
 
                   {user.id !== myId && (
-                    <button
-                      onClick={() => deleteUser(user.id, user.display_name)}
-                      className="text-xs px-3 py-1.5 rounded-full text-red-500 border border-red-900/50 hover:bg-red-900/20 transition-colors"
-                    >
-                      Borrar
-                    </button>
+                    <>
+                      <button
+                        onClick={() => toggleHidden(user.id, user.is_hidden)}
+                        className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                          user.is_hidden
+                            ? 'text-zinc-300 border-pitch-500 hover:bg-pitch-700'
+                            : 'text-zinc-500 border-pitch-600 hover:text-zinc-300 hover:border-pitch-500'
+                        }`}
+                      >
+                        {user.is_hidden ? 'Mostrar' : 'Ocultar'}
+                      </button>
+                      <button
+                        onClick={() => deleteUser(user.id, user.display_name)}
+                        className="text-xs px-3 py-1.5 rounded-full text-red-500 border border-red-900/50 hover:bg-red-900/20 transition-colors"
+                      >
+                        Borrar
+                      </button>
+                    </>
                   )}
                 </div>
               </div>

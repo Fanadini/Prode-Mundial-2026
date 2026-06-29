@@ -3,6 +3,7 @@ export type Profile = {
   display_name: string
   is_admin: boolean
   is_scorer: boolean
+  is_hidden: boolean
 }
 
 export type Team = {
