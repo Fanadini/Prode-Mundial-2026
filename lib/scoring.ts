@@ -10,7 +10,10 @@ export function calculatePoints(match: Match, prediction: Prediction): number {
     const actual90 = getResult(match.home_score, match.away_score)
     const pred90 = getResult(prediction.home_score, prediction.away_score)
     if (actual90 !== pred90) return 0
-    let pts = 2
+    const exactScore =
+      prediction.home_score === match.home_score &&
+      prediction.away_score === match.away_score
+    let pts = exactScore ? 5 : 2
     if (actual90 === 'draw' && prediction.advances_prediction && match.winner) {
       if (prediction.advances_prediction === match.winner) pts += 1
     }

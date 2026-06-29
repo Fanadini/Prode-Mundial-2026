@@ -123,7 +123,8 @@ export default function AdminPage() {
         const pred90 = pred.home_score != null && pred.away_score != null
           ? getResult(pred.home_score, pred.away_score) : null
         if (pred90 === actual90) {
-          points = 2
+          const exactScore = pred.home_score === home_score && pred.away_score === away_score
+          points = exactScore ? 5 : 2
           if (actual90 === 'draw' && pred.advances_prediction && winner) {
             if (pred.advances_prediction === winner) points += 1
           }

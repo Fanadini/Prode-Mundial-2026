@@ -216,8 +216,8 @@ export default function HomePage() {
           <p className="text-xs font-semibold text-gold-400 uppercase tracking-wide mb-3">Sistema de puntos</p>
           <div className="grid grid-cols-2 gap-1.5 text-xs text-zinc-500">
             <span>Fase de grupos</span><span className="text-zinc-400">1 pt ganador / 3 pt exacto</span>
-            <span>Eliminatorias</span><span className="text-zinc-400">2 pt resultado / +1 pt penales</span>
-            <span>Final</span><span className="text-zinc-400">2 pt resultado / +1 pt penales</span>
+            <span>Eliminatorias</span><span className="text-zinc-400">2 pt ganador / 5 pt exacto</span>
+            <span>Final</span><span className="text-zinc-400">2 pt ganador / 5 pt exacto</span>
             <span>Campeón</span><span className="text-zinc-400">10 pt</span>
             <span>Goleador</span><span className="text-zinc-400">5 pt</span>
           </div>
