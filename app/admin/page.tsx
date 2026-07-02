@@ -94,6 +94,18 @@ export default function AdminPage() {
     setMatches(ms => [...ms, data as MatchWithTeams])
     setResults(rs => ({ ...rs, [(data as MatchWithTeams).id]: { home: '', away: '', winner: '' } }))
     setNewHome(''); setNewAway(''); setNewDate('')
+
+    if (newStage !== 'group') {
+      const home = teams.find(t => t.id === Number(newHome))
+      const away = teams.find(t => t.id === Number(newAway))
+      supabase.functions.invoke('send-push', {
+        body: {
+          title: '⚽ Nuevo cruce disponible',
+          body: `${home?.flag ?? ''} ${home?.name ?? ''} vs ${away?.flag ?? ''} ${away?.name ?? ''} · ${stageLabel(newStage)}`,
+          url: '/Prode-Mundial-2026/predictions/',
+        }
+      }).catch(() => {})
+    }
   }
 
   const saveResult = async (matchId: number) => {
