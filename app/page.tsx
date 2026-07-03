@@ -4,7 +4,6 @@ import { createClient } from '@/lib/supabase-client'
 import Nav from '@/components/Nav'
 import { useRouter } from 'next/navigation'
 import type { LeaderboardEntry } from '@/lib/types'
-import { getPushState, subscribeToPush } from '@/lib/push'
 
 const MEDALS = ['🥇', '🥈', '🥉']
 
@@ -32,9 +31,6 @@ export default function HomePage() {
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null)
   const [userDetails, setUserDetails] = useState<Record<string, PredDetail[]>>({})
   const [loadingDetail, setLoadingDetail] = useState(false)
-  const [pushState, setPushState] = useState<'unsupported' | 'denied' | 'granted' | 'default' | null>(null)
-  const [enablingPush, setEnablingPush] = useState(false)
-
   useEffect(() => {
     const load = async () => {
       try {
@@ -47,7 +43,6 @@ export default function HomePage() {
         const { data } = await supabase.from('leaderboard').select('*')
         setLeaderboard((data as LeaderboardEntry[]) ?? [])
         setLoading(false)
-        getPushState().then(setPushState)
       } catch {
         router.push('/login')
       }
@@ -86,14 +81,6 @@ export default function HomePage() {
     }
   }
 
-  const enablePush = async () => {
-    if (!userId) return
-    setEnablingPush(true)
-    const ok = await subscribeToPush(supabase, userId)
-    setPushState(ok ? 'granted' : Notification.permission as 'denied' | 'default')
-    setEnablingPush(false)
-  }
-
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-pitch-950">
       <div className="text-center">
@@ -107,43 +94,9 @@ export default function HomePage() {
     <div className="bg-pitch-950 min-h-screen">
       <Nav isAdmin={isAdmin} isScorer={isScorer} />
       <main className="max-w-2xl mx-auto px-4 py-6">
-        <div className="mb-6 flex items-start justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-bold text-white">Tabla de posiciones</h1>
-            <p className="text-zinc-500 text-sm mt-1">Mundial 2026 — USA / México / Canadá</p>
-          </div>
-          {pushState && pushState !== 'unsupported' && (
-            <button
-              onClick={pushState === 'default' ? enablePush : undefined}
-              disabled={enablingPush || pushState === 'denied'}
-              title={
-                pushState === 'granted' ? 'Notificaciones activadas' :
-                pushState === 'denied' ? 'Notificaciones bloqueadas en tu navegador' :
-                'Activar notificaciones'
-              }
-              className={`flex-none mt-1 p-2 rounded-xl border transition-colors ${
-                pushState === 'granted'
-                  ? 'border-emerald-800/50 text-emerald-400 bg-emerald-900/20'
-                  : pushState === 'denied'
-                  ? 'border-pitch-700 text-zinc-600 cursor-not-allowed'
-                  : 'border-pitch-700 text-zinc-400 hover:border-gold-600 hover:text-gold-400'
-              }`}
-            >
-              {pushState === 'granted' ? (
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6V11c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
-                </svg>
-              ) : pushState === 'denied' ? (
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M20 18.69L7.84 6.14 5.27 3.49 4 4.76l2.8 2.8v.01c-.52.99-.8 2.16-.8 3.42V16l-2 2v1h14.73l2 2L22 19.72l-2-1.03zm-8 3.31c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-7.44V11c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68c-.15.03-.29.08-.43.12L18 10.56v4z"/>
-                </svg>
-              ) : (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                </svg>
-              )}
-            </button>
-          )}
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-white">Tabla de posiciones</h1>
+          <p className="text-zinc-500 text-sm mt-1">Mundial 2026 — USA / México / Canadá</p>
         </div>
 
         <div className="bg-pitch-800 rounded-2xl border border-pitch-700 overflow-hidden">
