@@ -24,7 +24,6 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://cqwgaghfwcgzmurrhgfd.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNxd2dhZ2hmd2Nnem11cnJoZ2ZkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyMDUyNDQsImV4cCI6MjA5Njc4MTI0NH0.xx0MSzJoewg8c_xGwvftPXa8n58jpiGZml9HnDCHgvs
-          NEXT_PUBLIC_VAPID_PUBLIC_KEY: BCyXarQzJAZi68cJBhxkC2laz3iVGLj4o0OnFYWl5oIT03tCotQoKG7eRkPUguQ_SA-2z7WoajEsq8ecNeKZc4Y
 
       - uses: peaceiris/actions-gh-pages@v3
         with:
