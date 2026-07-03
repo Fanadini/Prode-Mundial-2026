@@ -358,12 +358,6 @@ export default function PredictionsPage() {
           </div>
         )}
 
-        {/* Penalty winner display — locked (pre-kickoff) + draw predicted */}
-        {isElim && !match.is_finished && locked && isPredDraw && pred.advances && (
-          <p className="text-center text-xs text-zinc-500 pb-2">
-            Penales: {pred.advances === 'home' ? `${match.home_team?.flag} ${match.home_team?.name}` : `${match.away_team?.flag} ${match.away_team?.name}`}
-          </p>
-        )}
 
         {/* Who advanced — show on finished elimination draws */}
         {isElim && match.is_finished && match.winner && match.home_score === match.away_score && (
@@ -414,9 +408,19 @@ export default function PredictionsPage() {
             <p className="text-xs text-zinc-600">El resultado aparece cuando termine</p>
           </div>
         ) : locked ? (
-          <p className="text-center text-xs text-zinc-600 pb-3">
-            🔒 Cerrado — menos de 1h para el partido
-          </p>
+          <div className="px-3 pb-3 text-center space-y-1">
+            {hasPred && (
+              <p className="text-xs text-zinc-500">
+                Tu pronóstico: {pred.home} - {pred.away}
+                {isElim && pred.home === pred.away && pred.advances && (
+                  <> · {pred.advances === 'home'
+                    ? `${match.home_team?.flag} ${match.home_team?.name}`
+                    : `${match.away_team?.flag} ${match.away_team?.name}`} por penales</>
+                )}
+              </p>
+            )}
+            <p className="text-xs text-zinc-600">🔒 Cerrado — menos de 1h para el partido</p>
+          </div>
         ) : (
           <div className="px-3 pb-3">
             {saveError[match.id] && (
