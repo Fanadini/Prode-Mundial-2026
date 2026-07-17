@@ -175,6 +175,14 @@ export default function AdminPage() {
     if (!error) setUsers(us => us.filter(u => u.id !== userId))
   }
 
+  const deleteMatch = async (matchId: number) => {
+    if (!confirm('¿Eliminar este partido? Se borran todos los pronósticos asociados.')) return
+    await supabase.from('predictions').delete().eq('match_id', matchId)
+    await supabase.from('matches').delete().eq('id', matchId)
+    setMatches(ms => ms.filter(m => m.id !== matchId))
+    setResults(rs => { const next = { ...rs }; delete next[matchId]; return next })
+  }
+
   const isResultLocked = (match: MatchWithTeams) =>
     match.is_finished && match.match_date != null &&
     Date.now() - new Date(match.match_date).getTime() > 24 * 60 * 60 * 1000
@@ -251,16 +259,24 @@ export default function AdminPage() {
           </div>
         )}
 
-        <button onClick={() => saveResult(match.id)} disabled={isSaveDisabled}
-          className={`w-full py-2 rounded-xl text-sm font-semibold transition-colors disabled:cursor-not-allowed ${
-            locked
-              ? 'bg-pitch-900 text-zinc-700 border border-pitch-700'
-              : match.is_finished
-              ? 'bg-emerald-900/40 text-emerald-400 border border-emerald-900/50 hover:bg-emerald-900/60 disabled:opacity-50'
-              : 'bg-gold-500 hover:bg-gold-400 text-black disabled:opacity-50'
-          }`}>
-          {saving === match.id ? 'Guardando...' : locked ? '🔒 Bloqueado (+24hs)' : match.is_finished ? '✓ Actualizar resultado' : 'Guardar resultado'}
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => saveResult(match.id)} disabled={isSaveDisabled}
+            className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-colors disabled:cursor-not-allowed ${
+              locked
+                ? 'bg-pitch-900 text-zinc-700 border border-pitch-700'
+                : match.is_finished
+                ? 'bg-emerald-900/40 text-emerald-400 border border-emerald-900/50 hover:bg-emerald-900/60 disabled:opacity-50'
+                : 'bg-gold-500 hover:bg-gold-400 text-black disabled:opacity-50'
+            }`}>
+            {saving === match.id ? 'Guardando...' : locked ? '🔒 Bloqueado (+24hs)' : match.is_finished ? '✓ Actualizar resultado' : 'Guardar resultado'}
+          </button>
+          {!match.is_finished && isAdmin && (
+            <button onClick={() => deleteMatch(match.id)}
+              className="px-3 py-2 rounded-xl text-sm border border-red-900/50 text-red-500 hover:bg-red-900/20 transition-colors flex-none">
+              Eliminar
+            </button>
+          )}
+        </div>
       </div>
     )
   }
