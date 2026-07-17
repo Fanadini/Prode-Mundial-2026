@@ -27,6 +27,7 @@ export default function AdminPage() {
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState('')
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null)
+  const [deleteError, setDeleteError] = useState('')
 
   // Users state
   const [users, setUsers] = useState<Profile[]>([])
@@ -177,8 +178,10 @@ export default function AdminPage() {
   }
 
   const deleteMatch = async (matchId: number) => {
+    setDeleteError('')
     await supabase.from('predictions').delete().eq('match_id', matchId)
-    await supabase.from('matches').delete().eq('id', matchId)
+    const { error } = await supabase.from('matches').delete().eq('id', matchId)
+    if (error) { setDeleteError(error.message); setConfirmDelete(null); return }
     setMatches(ms => ms.filter(m => m.id !== matchId))
     setResults(rs => { const next = { ...rs }; delete next[matchId]; return next })
     setConfirmDelete(null)
@@ -353,6 +356,7 @@ export default function AdminPage() {
             </div>}
 
             <p className="text-xs text-zinc-600 mb-4">Al guardar un resultado, los puntos se recalculan para todos.</p>
+            {deleteError && <p className="text-red-400 text-xs mb-4">Error al eliminar: {deleteError}</p>}
 
             {stages.map(stage => {
               const stageMatches = matches.filter(m => m.stage === stage)
