@@ -26,6 +26,7 @@ export default function AdminPage() {
   const [newDate, setNewDate] = useState('')
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState('')
+  const [confirmDelete, setConfirmDelete] = useState<number | null>(null)
 
   // Users state
   const [users, setUsers] = useState<Profile[]>([])
@@ -176,11 +177,11 @@ export default function AdminPage() {
   }
 
   const deleteMatch = async (matchId: number) => {
-    if (!confirm('¿Eliminar este partido? Se borran todos los pronósticos asociados.')) return
     await supabase.from('predictions').delete().eq('match_id', matchId)
     await supabase.from('matches').delete().eq('id', matchId)
     setMatches(ms => ms.filter(m => m.id !== matchId))
     setResults(rs => { const next = { ...rs }; delete next[matchId]; return next })
+    setConfirmDelete(null)
   }
 
   const isResultLocked = (match: MatchWithTeams) =>
@@ -271,10 +272,23 @@ export default function AdminPage() {
             {saving === match.id ? 'Guardando...' : locked ? '🔒 Bloqueado (+24hs)' : match.is_finished ? '✓ Actualizar resultado' : 'Guardar resultado'}
           </button>
           {!match.is_finished && isAdmin && (
-            <button onClick={() => deleteMatch(match.id)}
-              className="px-3 py-2 rounded-xl text-sm border border-red-900/50 text-red-500 hover:bg-red-900/20 transition-colors flex-none">
-              Eliminar
-            </button>
+            confirmDelete === match.id ? (
+              <div className="flex gap-1 flex-none">
+                <button onClick={() => deleteMatch(match.id)}
+                  className="px-3 py-2 rounded-xl text-sm bg-red-900/40 border border-red-700 text-red-400 font-semibold transition-colors flex-none">
+                  ¿Confirmar?
+                </button>
+                <button onClick={() => setConfirmDelete(null)}
+                  className="px-3 py-2 rounded-xl text-sm border border-pitch-600 text-zinc-500 transition-colors flex-none">
+                  No
+                </button>
+              </div>
+            ) : (
+              <button onClick={() => setConfirmDelete(match.id)}
+                className="px-3 py-2 rounded-xl text-sm border border-red-900/50 text-red-500 hover:bg-red-900/20 transition-colors flex-none">
+                Eliminar
+              </button>
+            )
           )}
         </div>
       </div>
